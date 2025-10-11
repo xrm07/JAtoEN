@@ -81,6 +81,6 @@ jobs:
       - name: Run E2E (xvfb)
         env:
           CHROME_PATH: /usr/bin/google-chrome-stable
-          E2E_PORT: 0
+          E2E_PORT: 1234
         run: |
           xvfb-run -a -s "-screen 0 1280x800x24" pnpm test:e2e

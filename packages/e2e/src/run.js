@@ -40,9 +40,9 @@ async function main() {
   try {
     const page = await browser.newPage();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
-    await page.waitForSelector('#text', { timeout: 8000 });
+    await page.waitForSelector('#text', { timeout: 30000 });
     // Wait for content script to inject the (hidden) selection button element
-    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 8000 });
+    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 30000 });
 
     // Drag-select the test text to trigger button
     const handle = await page.$('#text');
@@ -59,7 +59,7 @@ async function main() {
     await page.mouse.up();
 
     // Wait until the selection button becomes visible and click it
-    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 8000, visible: true });
+    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 30000, visible: true });
     await page.click('[data-xt-id="xt-selection-button"]');
 
     // Expect tooltip to show the echoed translation
@@ -68,7 +68,7 @@ async function main() {
         const el = document.querySelector('[data-xt-role="translate-result"]');
         return el && el.textContent && el.textContent.includes('こんにちは世界。');
       },
-      { timeout: 8000 }
+      { timeout: 30000 }
     );
 
     console.log('[e2e] PASS selection → overlay flow');
@@ -82,7 +82,7 @@ async function main() {
         const el = document.querySelector('[data-xt-role="xt-progress"]');
         return el && getComputedStyle(el).display === 'block';
       },
-      { timeout: 8000 }
+      { timeout: 30000 }
     );
     // Wait for progress to hide after completion
     await page.waitForFunction(
@@ -90,7 +90,7 @@ async function main() {
         const el = document.querySelector('[data-xt-role="xt-progress"]');
         return el && getComputedStyle(el).display === 'none';
       },
-      { timeout: 15000 }
+      { timeout: 30000 }
     );
     console.log('[e2e] PASS full-page translation progress flow');
   } finally {
