@@ -115,12 +115,12 @@ const handleSelection = async (
   await executeTranslation(
     request,
     cacheKey,
-    (resp) => {
+    (resp: MsgTranslationResult | { error: string }) => {
       // Broadcast to content script for overlay handling
-      if ((resp as any)?.type === 'translate.result' && sender.tab?.id) {
-        chrome.tabs.sendMessage(sender.tab.id, resp as MsgTranslationResult);
+      if ('type' in resp && sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, resp);
       }
-      sendResponse(resp as any);
+      sendResponse(resp);
     }
   );
 };
