@@ -64,6 +64,9 @@ export class LMStudioClient {
   private readonly apiKey?: string;
   private readonly defaultTemperature: number;
   private readonly defaultModel: string;
+  private readonly concurrency = 2;
+  private inflight = 0;
+  private readonly queue: Array<() => void> = [];
 
   constructor(options: LMStudioClientOptions) {
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
@@ -85,7 +88,9 @@ export class LMStudioClient {
       ]
     };
 
-    const response = await this.send('POST', '/chat/completions', payload);
+    const response = await this.requestWithRetry(() =>
+      this.send('POST', '/chat/completions', payload)
+    );
     const firstChoice = response.choices.at(0);
     const content = firstChoice?.message?.content;
 
@@ -98,6 +103,39 @@ export class LMStudioClient {
 
     const translatedSegments = splitTranslatedPayload(content, request.segments.length);
     return buildTranslationResult(request, translatedSegments);
+  }
+
+  private async requestWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+    const attempt = async (n: number): Promise<T> => {
+      try {
+        return await this.withRateLimit(fn);
+      } catch (error) {
+        if (!(error instanceof LMStudioClientError)) throw error;
+        if (n >= 2) throw error;
+        let delay = 500 * 2 ** n;
+        if (error.code === 'rate-limit' && error.retryAfter) {
+          delay = error.retryAfter * 1000;
+        }
+        await sleep(delay);
+        return attempt(n + 1);
+      }
+    };
+    return attempt(0);
+  }
+
+  private async withRateLimit<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.inflight >= this.concurrency) {
+      await new Promise<void>((resolve) => this.queue.push(resolve));
+    }
+    this.inflight += 1;
+    try {
+      const result = await fn();
+      return result;
+    } finally {
+      this.inflight -= 1;
+      const next = this.queue.shift();
+      if (next) next();
+    }
   }
 
   private async send(method: HttpMethod, path: string, body: unknown): Promise<ChatCompletionResponse> {
@@ -177,3 +215,5 @@ const parseRetryAfter = (value: string | null): number | undefined => {
   const delay = Number.parseInt(value, 10);
   return Number.isFinite(delay) ? delay : undefined;
 };
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

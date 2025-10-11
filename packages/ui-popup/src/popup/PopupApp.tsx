@@ -16,6 +16,10 @@ export const PopupApp = () => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pair, setPair] = useState(INITIAL_PAIR);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [model, setModel] = useState('lmstudio/translate-enja');
+  const [temperature, setTemperature] = useState(0.2);
+  const [maxTokens, setMaxTokens] = useState(1024);
+  const [stats, setStats] = useState<{ entries: number; estimatedBytes: number; hits: number; misses: number } | null>(null);
 
   useEffect(() => {
     const listener = (message: { type: string; id: string; items?: Array<{ translated: string }> }) => {
@@ -42,6 +46,28 @@ export const PopupApp = () => {
       chrome.runtime.onMessage.removeListener(listener);
     };
   }, [input, pair]);
+
+  // Load settings
+  useEffect(() => {
+    void chrome.storage.local.get(['xt-settings']).then((res) => {
+      const s = res['xt-settings'] as any;
+      if (!s) return;
+      setModel(s.model ?? model);
+      setTemperature(Number(s.temperature ?? temperature));
+      setMaxTokens(Number(s.maxTokens ?? maxTokens));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Stats polling
+  useEffect(() => {
+    const id = setInterval(() => {
+      void chrome.runtime.sendMessage({ type: 'stats.get' }).then((res) => {
+        if (res?.type === 'stats.result') setStats(res.stats);
+      });
+    }, 2000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -118,6 +144,40 @@ export const PopupApp = () => {
           }}
         >
           {output || '結果がここに表示されます'}
+        </div>
+      </section>
+      <section style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 14, marginBottom: 8 }}>設定</h2>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={{ fontSize: 12 }}>
+            モデル
+            <input value={model} onChange={(e) => setModel(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <label style={{ fontSize: 12 }}>
+            Temperature
+            <input type="number" step="0.1" value={temperature}
+              onChange={(e) => setTemperature(Number(e.target.value))} style={{ width: '100%' }} />
+          </label>
+          <label style={{ fontSize: 12 }}>
+            Max tokens
+            <input type="number" value={maxTokens}
+              onChange={(e) => setMaxTokens(Number(e.target.value))} style={{ width: '100%' }} />
+          </label>
+          <button type="button" onClick={() => chrome.storage.local.set({ 'xt-settings': { model, temperature, maxTokens } })}>
+            保存
+          </button>
+        </div>
+      </section>
+      <section style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 14, marginBottom: 8 }}>統計</h2>
+        <div style={{ fontSize: 12, color: '#374151' }}>
+          {stats ? (
+            <>
+              <div>Entries: {stats.entries}</div>
+              <div>Estimated bytes: {stats.estimatedBytes}</div>
+              <div>Hits: {stats.hits} / Misses: {stats.misses}</div>
+            </>
+          ) : '—'}
         </div>
       </section>
       <section style={{ marginTop: 16 }}>

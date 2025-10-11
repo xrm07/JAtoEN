@@ -8,7 +8,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap",
+    "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap && mv dist/index.js dist/content.js",
     "dev": "tsup src/index.ts --format esm --out-dir dist --sourcemap --watch",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint 'src/**/*.ts'",

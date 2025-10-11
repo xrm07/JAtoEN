@@ -152,3 +152,15 @@ const hash = (value: string): string => {
   }
   return Math.abs(hashValue).toString(16);
 };
+
+import { IndexedDbCacheRepository } from './indexeddb-repo';
+
+export const createCacheRepository = (
+  options?: { maxBytes?: number; ttl?: number }
+): CacheRepository => {
+  // eslint-disable-next-line no-restricted-globals
+  if (typeof indexedDB !== 'undefined') {
+    return new IndexedDbCacheRepository(options);
+  }
+  return new MemoryCacheRepository(options);
+};

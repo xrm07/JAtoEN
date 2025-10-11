@@ -2,9 +2,12 @@ import { Segmenter } from '@ja-to-en/domain';
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
+const PROGRESS_ID = 'xt-progress';
 
 const segmenter = new Segmenter();
 let currentSelection: Selection | null = null;
+let progressEl: HTMLDivElement | null = null;
+const nodeMap = new Map<string, Text>();
 
 const ensureButton = (): HTMLButtonElement => {
   const existing = document.querySelector<HTMLButtonElement>(`[data-xt-id="${BUTTON_ID}"]`);
@@ -50,9 +53,20 @@ const ensureTooltip = (): HTMLDivElement => {
   return tooltip;
 };
 
+const ensureProgress = (): HTMLDivElement => {
+  if (progressEl) return progressEl;
+  const el = document.createElement('div');
+  el.dataset.xtRole = 'xt-progress';
+  el.style.display = 'none';
+  document.body.appendChild(el);
+  progressEl = el;
+  return el;
+};
+
 const hideOverlays = () => {
   ensureButton().style.display = 'none';
   ensureTooltip().style.display = 'none';
+  if (progressEl) progressEl.style.display = 'none';
 };
 
 const showButton = (x: number, y: number) => {
@@ -101,18 +115,29 @@ const handleClick = () => {
 };
 
 const handleRuntimeMessage = (
-  message: { type: string; id: string; items?: Array<{ translated: string }> }
+  message: { type: string; id: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
 ) => {
-  if (message.type !== 'translate.result' || !message.items?.length) {
-    return;
-  }
-  const range = currentSelection?.rangeCount ? currentSelection.getRangeAt(0) : undefined;
-  if (!range) {
+  if (message.type === 'translate.progress') {
+    const el = ensureProgress();
+    el.textContent = `Translating ${message.done}/${message.total}`;
+    el.style.display = 'block';
     return;
   }
 
-  const rect = range.getBoundingClientRect();
-  showTooltip(message.items[0]?.translated ?? '', rect.left, rect.top);
+  if (message.type === 'translate.result') {
+    if (message.items?.length && currentSelection?.rangeCount) {
+      const range = currentSelection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      showTooltip(message.items[0]?.translated ?? '', rect.left, rect.top);
+    }
+
+    // Page translation result: replace mapped nodes
+    for (const item of message.items ?? []) {
+      const node = nodeMap.get(item.id);
+      if (node) node.textContent = item.translated;
+    }
+    if (progressEl) progressEl.style.display = 'none';
+  }
 };
 
 ensureButton().addEventListener('click', handleClick);
@@ -125,3 +150,65 @@ document.addEventListener('keyup', (event: KeyboardEvent) => {
 chrome.runtime.onMessage.addListener((message) => {
   handleRuntimeMessage(message as never);
 });
+
+// Commands from background
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === 'content.startPageTranslation') {
+    void startFullPageTranslation();
+  }
+  if (message?.type === 'content.translateSelection') {
+    handleClick();
+  }
+});
+
+const startFullPageTranslation = async () => {
+  nodeMap.clear();
+  const segments: { id: string; text: string; path: string }[] = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node: Node) => {
+      if (!(node instanceof Text)) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      const tag = parent.tagName.toLowerCase();
+      if (['script', 'style', 'noscript', 'textarea', 'input'].includes(tag)) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      const text = node.textContent?.trim() ?? '';
+      if (text.length <= 0) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  } as never);
+
+  let index = 0;
+  let current: Node | null = walker.nextNode();
+  while (current) {
+    if (current instanceof Text) {
+      const id = `seg-${index.toString().padStart(4, '0')}`;
+      nodeMap.set(id, current);
+      segments.push({ id, text: current.textContent ?? '', path: getNodePath(current) });
+      index += 1;
+    }
+    current = walker.nextNode();
+  }
+
+  const id = `page-${Date.now()}`;
+  await chrome.runtime.sendMessage({
+    type: 'translate.page',
+    id,
+    segments,
+    pair: { src: 'ja', dst: 'en' }
+  });
+};
+
+const getNodePath = (node: Node): string => {
+  const parts: string[] = [];
+  let n: Node | null = node;
+  while (n && n !== document.body) {
+    const parent = n.parentNode;
+    if (!parent) break;
+    const index = Array.prototype.indexOf.call(parent.childNodes, n);
+    parts.push(String(index));
+    n = parent;
+  }
+  return parts.reverse().join('/');
+};

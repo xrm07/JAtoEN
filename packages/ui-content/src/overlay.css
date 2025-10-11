@@ -1,0 +1,21 @@
+/* Minimal overlay styles scoped with data-xt-* attributes */
+[data-xt-id="xt-selection-button"] {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+[data-xt-id="xt-translation-tooltip"] a {
+  color: #93c5fd;
+}
+
+[data-xt-role="xt-progress"] {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  padding: 6px 10px;
+  background: rgba(31,41,51,0.9);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  z-index: 2147483647;
+}
+

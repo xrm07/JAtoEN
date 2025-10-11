@@ -9,7 +9,7 @@
     "public"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --out-dir dist --format esm --sourcemap",
+    "build": "tsup src/index.ts --out-dir dist --format esm --sourcemap && mv dist/index.js dist/background.js && node ./scripts/assemble-extension.mjs",
     "dev": "tsup src/index.ts --out-dir dist --format esm --sourcemap --watch",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint 'src/**/*.ts'",
@@ -20,7 +20,9 @@
   "dependencies": {
     "@ja-to-en/domain": "workspace:*",
     "@ja-to-en/infra-cache": "workspace:*",
-    "@ja-to-en/infra-lmstudio": "workspace:*"
+    "@ja-to-en/infra-lmstudio": "workspace:*",
+    "@ja-to-en/ui-content": "workspace:*",
+    "@ja-to-en/ui-popup": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.1.0",

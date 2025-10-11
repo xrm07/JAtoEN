@@ -5,9 +5,9 @@ import {
 } from '@ja-to-en/domain';
 import {
   CacheValue,
-  MemoryCacheRepository,
   buildCacheKey,
-  estimateBytes
+  estimateBytes,
+  createCacheRepository
 } from '@ja-to-en/infra-cache';
 import { LMStudioClient, LMStudioClientError } from '@ja-to-en/infra-lmstudio';
 
@@ -55,7 +55,7 @@ const runtimeConfig: RuntimeConfig = {
 };
 
 const segmenter = new Segmenter();
-const cache = new MemoryCacheRepository();
+const cache = createCacheRepository();
 const client = new LMStudioClient({
   defaultModel: runtimeConfig.model,
   defaultTemperature: runtimeConfig.temperature
@@ -63,6 +63,7 @@ const client = new LMStudioClient({
 
 const handleMessage = async (
   message: BackgroundMessage,
+  sender: chrome.runtime.MessageSender,
   sendResponse: (response: MsgTranslationResult | MsgProgress | { error: string }) => void
 ): Promise<void> => {
   if (message.type === 'translate.selection') {
@@ -71,7 +72,7 @@ const handleMessage = async (
   }
 
   if (message.type === 'translate.page') {
-    await handlePageTranslation(message, sendResponse);
+    await handlePageTranslation(message, sender, sendResponse);
   }
 };
 
@@ -111,6 +112,7 @@ const handleSelection = async (
 
 const handlePageTranslation = async (
   message: MsgTranslatePage,
+  sender: chrome.runtime.MessageSender,
   sendResponse: (response: MsgTranslationResult | MsgProgress | { error: string }) => void
 ) => {
   if (message.segments.length === 0) {
@@ -122,12 +124,14 @@ const handlePageTranslation = async (
     return;
   }
 
-  sendResponse({
-    type: 'translate.progress',
-    id: message.id,
-    done: 0,
-    total: message.segments.length
-  });
+  if (sender.tab?.id) {
+    chrome.tabs.sendMessage(sender.tab.id, {
+      type: 'translate.progress',
+      id: message.id,
+      done: 0,
+      total: message.segments.length
+    } satisfies MsgProgress);
+  }
 
   const request = createTranslationRequest(
     message.id,
@@ -144,12 +148,31 @@ const handlePageTranslation = async (
   );
 
   try {
-    const result = await client.translate(request);
-    sendResponse(result);
+    // Batch to respect token limits; simple fixed size grouping for now
+    const batchSize = 20;
+    const translatedItems: Array<{ id: string; translated: string }> = [];
+    for (let i = 0; i < request.segments.length; i += batchSize) {
+      const slice = request.segments.slice(i, i + batchSize);
+      const req = createTranslationRequest(
+        `${message.id}-${i / batchSize}`,
+        slice,
+        message.pair,
+        request.params
+      );
+      const res = await client.translate(req);
+      translatedItems.push(...res.items);
+      if (sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: 'translate.progress',
+          id: message.id,
+          done: Math.min(i + batchSize, request.segments.length),
+          total: request.segments.length
+        } satisfies MsgProgress);
+      }
+    }
+    sendResponse({ type: 'translate.result', id: message.id, items: translatedItems });
   } catch (error) {
-    sendResponse({
-      error: serializeError(error)
-    });
+    sendResponse({ error: serializeError(error) });
   }
 };
 
@@ -210,7 +233,70 @@ const serializeError = (error: unknown): string => {
   return 'Unknown error';
 };
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  void handleMessage(message as BackgroundMessage, sendResponse);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  void handleMessage(message as BackgroundMessage, sender, sendResponse);
   return true;
+});
+
+// Load persisted settings
+const loadSettings = async () => {
+  try {
+    const data = await chrome.storage.local.get(['xt-settings']);
+    const s = data['xt-settings'] as Partial<RuntimeConfig> | undefined;
+    if (s?.model) runtimeConfig.model = s.model as string;
+    if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
+    if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+  } catch {
+    // ignore
+  }
+};
+
+void loadSettings();
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes['xt-settings']) {
+    const s = changes['xt-settings'].newValue as Partial<RuntimeConfig> | undefined;
+    if (s?.model) runtimeConfig.model = s.model as string;
+    if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
+    if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+  }
+});
+
+// Keyboard shortcuts (commands)
+chrome.commands.onCommand.addListener(async (command) => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  if (command === 'translate-selection') {
+    chrome.tabs.sendMessage(tab.id, { type: 'content.translateSelection' });
+  }
+  if (command === 'translate-page') {
+    chrome.tabs.sendMessage(tab.id, { type: 'content.startPageTranslation' });
+  }
+});
+
+// Context menu entries
+chrome.runtime.onInstalled.addListener(() => {
+  try { chrome.contextMenus.removeAll(); } catch { /* noop */ }
+  chrome.contextMenus.create({ id: 'xt-translate-selection', title: 'Translate selection', contexts: ['selection'] });
+  chrome.contextMenus.create({ id: 'xt-translate-page', title: 'Translate entire page', contexts: ['page'] });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab?.id) return;
+  if (info.menuItemId === 'xt-translate-selection') {
+    chrome.tabs.sendMessage(tab.id, { type: 'content.translateSelection' });
+  }
+  if (info.menuItemId === 'xt-translate-page') {
+    chrome.tabs.sendMessage(tab.id, { type: 'content.startPageTranslation' });
+  }
+});
+
+// Stats endpoint for popup
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'stats.get') {
+    void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
+    return true;
+  }
+  return undefined;
 });
