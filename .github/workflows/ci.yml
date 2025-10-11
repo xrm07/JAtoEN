@@ -52,3 +52,27 @@ jobs:
           name: extension-dist
           path: extension.zip
 
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build extension
+        run: pnpm -w --filter @ja-to-en/ui-content --filter @ja-to-en/ui-popup --filter @ja-to-en/background build
+      - name: Run E2E (xvfb)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: |
+          xvfb-run -a -s "-screen 0 1280x800x24" pnpm test:e2e
