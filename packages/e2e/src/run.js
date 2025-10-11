@@ -19,6 +19,9 @@ async function main() {
 
   const { server, port } = await startStubServer();
 
+  // Write e2e-settings.json BEFORE launching Chrome so the service worker can read it at startup
+  await writeE2ESettings(EXT_DIR, port);
+
   const executablePath = resolveChromePath();
   const browser = await puppeteer.launch({
     headless: false, // Extensions require headful (run under xvfb in CI)
@@ -39,8 +42,6 @@ async function main() {
   });
 
   try {
-    // Wait for extension service worker to be registered to ensure extension is alive
-    await waitForExtensionServiceWorker(browser, 30000);
     const page = await browser.newPage();
     await page.bringToFront();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
@@ -159,6 +160,16 @@ async function startStubServer() {
   const actualPort = typeof address === 'object' && address ? address.port : requested;
   console.log(`[stub] LM Studio stub listening at http://localhost:${actualPort}`);
   return { server, port: actualPort };
+}
+
+import { writeFile } from 'node:fs/promises';
+async function writeE2ESettings(extDir, port) {
+  try {
+    const json = { baseUrl: `http://localhost:${port}/v1` };
+    await writeFile(path.join(extDir, 'e2e-settings.json'), JSON.stringify(json), 'utf8');
+  } catch (e) {
+    console.warn('[e2e] Failed to write e2e-settings.json:', e);
+  }
 }
 
 function handleChatCompletion(req, res) {
