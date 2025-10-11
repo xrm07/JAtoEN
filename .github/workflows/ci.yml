@@ -80,6 +80,7 @@ jobs:
         run: pnpm -w --filter @ja-to-en/ui-content --filter @ja-to-en/ui-popup --filter @ja-to-en/background build
       - name: Run E2E (xvfb)
         env:
-          CHROME_PATH: /usr/bin/google-chrome
+          CHROME_PATH: /usr/bin/google-chrome-stable
+          E2E_PORT: 0
         run: |
           xvfb-run -a -s "-screen 0 1280x800x24" pnpm test:e2e
