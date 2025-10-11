@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap",
     "dev": "tsup src/index.ts --format esm --out-dir dist --sourcemap --watch",
-    "test": "vitest",
+    "test": "vitest run",
     "lint": "eslint 'src/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts'",
@@ -20,8 +20,8 @@
     "@ja-to-en/domain": "workspace:*"
   },
   "devDependencies": {
-    "tsup": "workspace:*",
-    "typescript": "workspace:*",
-    "vitest": "workspace:*"
+    "tsup": "^8.1.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
   }
 }

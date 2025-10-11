@@ -15,9 +15,9 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "workspace:*",
-    "typescript": "workspace:*",
-    "vite": "workspace:*",
-    "vitest": "workspace:*"
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.9",
+    "vitest": "^1.6.0"
   }
 }

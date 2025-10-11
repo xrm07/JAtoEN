@@ -132,7 +132,7 @@ export class Segmenter {
     }
 
     const parts = sanitized
-      .split(/(?<=[\.。！？!?])\s+/u)
+      .split(/(?<=[.。！？!?])\s+/u)
       .flatMap((chunk) =>
         chunk
           .split(/\n+/)

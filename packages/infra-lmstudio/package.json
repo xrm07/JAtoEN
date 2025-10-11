@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm --out-dir dist",
-    "test": "vitest",
+    "test": "vitest run",
     "dev": "vitest watch",
     "lint": "eslint 'src/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",
@@ -18,9 +18,9 @@
     "format:check": "prettier --check 'src/**/*.ts'"
   },
   "devDependencies": {
-    "tsup": "workspace:*",
-    "typescript": "workspace:*",
-    "vitest": "workspace:*"
+    "tsup": "^8.1.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
   },
   "dependencies": {
     "@ja-to-en/domain": "workspace:*"
