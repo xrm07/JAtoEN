@@ -111,20 +111,22 @@ async function startStubServer() {
     res.end('not found');
   });
 
-  const PORT = Number.parseInt(process.env.E2E_PORT || '1234', 10);
+  const requested = Number.parseInt(process.env.E2E_PORT || '1234', 10);
   await new Promise((resolve, reject) => {
     server
-      .listen(PORT, resolve)
+      .listen(requested, resolve)
       .on('error', (err) => {
         if ((err && /** @type {any} */ (err).code) === 'EADDRINUSE') {
-          reject(new Error(`Port ${PORT} is already in use. Set E2E_PORT to use a different port.`));
+          reject(new Error(`Port ${requested} is already in use. Set E2E_PORT to use a different port.`));
         } else {
           reject(err);
         }
       });
   });
-  console.log(`[stub] LM Studio stub listening at http://localhost:${PORT}`);
-  return { server, port: PORT };
+  const address = server.address();
+  const actualPort = typeof address === 'object' && address ? address.port : requested;
+  console.log(`[stub] LM Studio stub listening at http://localhost:${actualPort}`);
+  return { server, port: actualPort };
 }
 
 function handleChatCompletion(req, res) {
