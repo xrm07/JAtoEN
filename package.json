@@ -10,7 +10,8 @@
     "lint:fix": "pnpm -r --if-present run lint:fix",
     "format": "pnpm -r --if-present run format",
     "format:check": "pnpm -r --if-present run format:check",
-    "test": "pnpm -r --if-present run test",
+    "test": "pnpm -r --if-present --filter '!@ja-to-en/e2e' run test",
+    "test:unit": "pnpm -r --if-present --filter '!@ja-to-en/e2e' run test",
     "coverage": "pnpm -r --filter domain --filter infra-cache --if-present run coverage",
     "test:e2e": "pnpm --filter e2e test"
   },
