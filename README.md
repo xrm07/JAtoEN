@@ -1,5 +1,7 @@
 # JA⇄EN Translator Extension
 
+[![CI](https://github.com/xrm07/JAtoEN/actions/workflows/ci.yml/badge.svg)](https://github.com/xrm07/JAtoEN/actions/workflows/ci.yml)
+
 ローカルの LM Studio 推論を活用してブラウザ内で英日・日英翻訳を提供する Chrome 拡張のモノレポです。`requirements.txt` に記載された要件を実装するための初期スキャフォールドを用意しています。
 
 ## リポジトリ構成
@@ -33,3 +35,8 @@
 
 - requirements の仕様に合わせて LM Studio オプション UI、IndexedDB 実装、ジョブ進捗ハンドリングを拡張してください。
 - `packages/e2e` に Puppeteer シナリオを実装し、CI で `pnpm test:e2e` を実行できるようにします。
+
+## CI
+
+- GitHub Actions の CI が `lint` / `test` / `build` を実行し、`packages/background/dist` の内容を `extension-dist` アーティファクトとして保存します。
+- 成果物のZIPは `extension.zip` で取得できます。
