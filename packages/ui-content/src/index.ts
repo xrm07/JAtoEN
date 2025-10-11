@@ -161,6 +161,12 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
+// Testing hook: allow the page to dispatch a custom event to start full-page translation
+// This avoids requiring keyboard shortcuts in automated E2E and is a no-op for normal users.
+window.addEventListener('xt:translate-page', () => {
+  void startFullPageTranslation();
+});
+
 const startFullPageTranslation = async () => {
   nodeMap.clear();
   const segments: { id: string; text: string; path: string }[] = [];

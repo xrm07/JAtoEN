@@ -72,6 +72,27 @@ async function main() {
     );
 
     console.log('[e2e] PASS selection → overlay flow');
+
+    // Trigger full-page translation via custom event and await progress visibility
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('xt:translate-page'));
+    });
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-xt-role="xt-progress"]');
+        return el && getComputedStyle(el).display === 'block';
+      },
+      { timeout: 8000 }
+    );
+    // Wait for progress to hide after completion
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-xt-role="xt-progress"]');
+        return el && getComputedStyle(el).display === 'none';
+      },
+      { timeout: 15000 }
+    );
+    console.log('[e2e] PASS full-page translation progress flow');
   } finally {
     try {
       await browser.close();
@@ -103,7 +124,10 @@ function resolveChromePath() {
 async function startStubServer() {
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/test') {
-      const content = `<!doctype html><meta charset="utf-8"><title>e2e</title><div id="text">こんにちは世界。</div>`;
+      const content = `<!doctype html><meta charset="utf-8"><title>e2e</title>
+        <div id="text">こんにちは世界。</div>
+        <p id="p1">これはテスト用の段落です。</p>
+        <p id="p2">もう一つの段落です。</p>`;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Length', Buffer.byteLength(content));
       return res.end(content);
@@ -163,4 +187,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-
