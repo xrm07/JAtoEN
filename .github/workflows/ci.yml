@@ -27,10 +27,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Lint
         run: pnpm lint
@@ -74,9 +73,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
       - name: Build extension
         run: pnpm -w --filter @ja-to-en/ui-content --filter @ja-to-en/ui-popup --filter @ja-to-en/background build
       - name: Run E2E (xvfb)
