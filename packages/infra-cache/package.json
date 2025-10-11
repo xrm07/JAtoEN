@@ -1,0 +1,28 @@
+{
+  "name": "@ja-to-en/infra-cache",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm --out-dir dist",
+    "test": "vitest",
+    "dev": "vitest watch",
+    "lint": "eslint 'src/**/*.ts'",
+    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'"
+  },
+  "devDependencies": {
+    "tsup": "workspace:*",
+    "typescript": "workspace:*",
+    "vitest": "workspace:*"
+  },
+  "dependencies": {
+    "@ja-to-en/domain": "workspace:*"
+  }
+}

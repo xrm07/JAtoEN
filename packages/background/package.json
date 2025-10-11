@@ -1,0 +1,30 @@
+{
+  "name": "@ja-to-en/background",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/service-worker.js",
+  "files": [
+    "dist",
+    "public"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --out-dir dist --format esm --sourcemap",
+    "dev": "tsup src/index.ts --out-dir dist --format esm --sourcemap --watch",
+    "test": "vitest",
+    "lint": "eslint 'src/**/*.ts'",
+    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'"
+  },
+  "dependencies": {
+    "@ja-to-en/domain": "workspace:*",
+    "@ja-to-en/infra-cache": "workspace:*",
+    "@ja-to-en/infra-lmstudio": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "workspace:*",
+    "typescript": "workspace:*",
+    "vitest": "workspace:*"
+  }
+}

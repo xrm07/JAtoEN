@@ -1,0 +1,27 @@
+{
+  "name": "@ja-to-en/ui-content",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/content.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap",
+    "dev": "tsup src/index.ts --format esm --out-dir dist --sourcemap --watch",
+    "test": "vitest",
+    "lint": "eslint 'src/**/*.ts'",
+    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'"
+  },
+  "dependencies": {
+    "@ja-to-en/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "workspace:*",
+    "typescript": "workspace:*",
+    "vitest": "workspace:*"
+  }
+}

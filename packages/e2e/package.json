@@ -1,0 +1,10 @@
+{
+  "name": "@ja-to-en/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node ./src/placeholder.js"
+  },
+  "devDependencies": {}
+}

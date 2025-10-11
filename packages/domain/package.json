@@ -1,0 +1,26 @@
+{
+  "name": "@ja-to-en/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm --out-dir dist",
+    "dev": "vitest watch",
+    "test": "vitest",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'"
+  },
+  "devDependencies": {
+    "tsup": "workspace:*",
+    "typescript": "workspace:*",
+    "vitest": "workspace:*"
+  }
+}

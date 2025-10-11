@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": false,
+    "declarationMap": false,
+    "lib": [
+      "DOM",
+      "ES2022"
+    ],
+    "types": [
+      "chrome"
+    ]
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    { "path": "../domain" },
+    { "path": "../infra-cache" },
+    { "path": "../infra-lmstudio" }
+  ]
+}
