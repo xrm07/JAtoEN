@@ -1,4 +1,9 @@
 // Removed dependency on '@ja-to-en/domain'
+// Debug log to help E2E/CI verify injection
+try {
+  // eslint-disable-next-line no-console
+  console.log('[xt] content script loaded');
+} catch {}
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';

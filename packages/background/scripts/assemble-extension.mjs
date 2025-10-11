@@ -24,12 +24,11 @@ if (!existsSync(backgroundJs)) {
   console.warn('[assemble] background.js not found. Build background first.');
 }
 
-// Copy content.js from ui-content build
-if (existsSync(contentJs)) {
-  cpSync(contentJs, join(outDir, 'content.js'));
-} else {
-  console.warn('[assemble] content.js not found. Build ui-content first.');
+// Copy content.js from ui-content build (hard requirement)
+if (!existsSync(contentJs)) {
+  throw new Error('[assemble] content.js not found. Ensure @ja-to-en/ui-content build ran before assembling.');
 }
+cpSync(contentJs, join(outDir, 'content.js'));
 
 // Copy overlay.css (static)
 if (existsSync(overlayCss)) {
@@ -54,11 +53,3 @@ if (existsSync(popupDist)) {
 }
 
 console.log('[assemble] Extension artifacts prepared in', outDir);
-
-// Preserve e2e-settings.json if present (created by e2e runner)
-try {
-  if (existsSync(e2eSettings)) {
-    cpSync(e2eSettings, join(outDir, 'e2e-settings.json'));
-  }
-} catch {}
-

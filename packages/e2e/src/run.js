@@ -16,6 +16,10 @@ async function main() {
     console.error('[e2e] Extension not built. Run `pnpm build` first.');
     process.exit(1);
   }
+  if (!existsSync(path.join(EXT_DIR, 'content.js'))) {
+    console.error('[e2e] content.js missing in extension dist. Ensure ui-content built and assembly copied it.');
+    process.exit(1);
+  }
 
   const { server, port } = await startStubServer();
 
@@ -43,6 +47,9 @@ async function main() {
 
   try {
     const page = await browser.newPage();
+    // Surface console/page errors to CI logs
+    page.on('console', (msg) => console.log(`[console] ${msg.type()}: ${msg.text()}`));
+    page.on('pageerror', (err) => console.error('[pageerror]', err.message));
     await page.bringToFront();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('#text', { timeout: 30000 });
