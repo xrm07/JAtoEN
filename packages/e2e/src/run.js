@@ -1,7 +1,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +17,7 @@ async function main() {
     process.exit(1);
   }
 
-  const server = await startStubServer();
+  const { server, port } = await startStubServer();
 
   const executablePath = resolveChromePath();
   const browser = await puppeteer.launch({
@@ -33,7 +33,7 @@ async function main() {
 
   try {
     const page = await browser.newPage();
-    await page.goto('http://localhost:1234/test', { waitUntil: 'networkidle0' });
+    await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
 
     // Drag-select the test text to trigger button
     const handle = await page.$('#text');
@@ -58,8 +58,16 @@ async function main() {
 
     console.log('[e2e] PASS selection → overlay flow');
   } finally {
-    await browser.close();
-    await new Promise((r) => server.close(r));
+    try {
+      await browser.close();
+    } catch (e) {
+      console.error('[e2e] Failed to close browser:', e);
+    }
+    try {
+      await new Promise((r) => server.close(r));
+    } catch (e) {
+      console.error('[e2e] Failed to close server:', e);
+    }
   }
 }
 
@@ -80,42 +88,58 @@ function resolveChromePath() {
 async function startStubServer() {
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/test') {
+      const content = `<!doctype html><meta charset="utf-8"><title>e2e</title><div id="text">こんにちは世界。</div>`;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.end(
-        `<!doctype html><meta charset="utf-8"><title>e2e</title><div id="text">こんにちは世界。</div>`
-      );
+      res.setHeader('Content-Length', Buffer.byteLength(content));
+      return res.end(content);
     }
     if (req.method === 'POST' && req.url === '/v1/chat/completions') {
-      let body = '';
-      req.on('data', (c) => (body += c));
-      req.on('end', () => {
-        try {
-          const json = JSON.parse(body);
-          const userMsg = json?.messages?.find?.((m) => m.role === 'user');
-          const content = typeof userMsg?.content === 'string' ? userMsg.content : '';
-          const out = JSON.stringify({
-            choices: [
-              {
-                message: { role: 'assistant', content }
-              }
-            ]
-          });
-          res.setHeader('Content-Type', 'application/json');
-          res.end(out);
-        } catch (e) {
-          res.statusCode = 500;
-          res.end(String(e));
-        }
-      });
-      return;
+      return handleChatCompletion(req, res);
     }
     res.statusCode = 404;
     res.end('not found');
   });
 
-  await new Promise((resolve, reject) => server.listen(1234, resolve).on('error', reject));
-  console.log('[stub] LM Studio stub listening at http://localhost:1234');
-  return server;
+  const PORT = Number.parseInt(process.env.E2E_PORT || '1234', 10);
+  await new Promise((resolve, reject) => {
+    server
+      .listen(PORT, resolve)
+      .on('error', (err) => {
+        if ((err && /** @type {any} */ (err).code) === 'EADDRINUSE') {
+          reject(new Error(`Port ${PORT} is already in use. Set E2E_PORT to use a different port.`));
+        } else {
+          reject(err);
+        }
+      });
+  });
+  console.log(`[stub] LM Studio stub listening at http://localhost:${PORT}`);
+  return { server, port: PORT };
+}
+
+function handleChatCompletion(req, res) {
+  let body = '';
+  req.on('data', (c) => (body += c));
+  req.on('end', () => {
+    try {
+      const json = JSON.parse(body);
+      const userMsg = json?.messages?.find?.((m) => m.role === 'user');
+      const content = typeof userMsg?.content === 'string' ? userMsg.content : '';
+      const out = JSON.stringify({
+        choices: [
+          {
+            message: { role: 'assistant', content }
+          }
+        ]
+      });
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Length', Buffer.byteLength(out));
+      res.end(out);
+    } catch (e) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'text/plain');
+      res.end(String(e));
+    }
+  });
 }
 
 main().catch((e) => {
