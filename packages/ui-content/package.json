@@ -16,9 +16,7 @@
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'"
   },
-  "dependencies": {
-    "@ja-to-en/domain": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "tsup": "^8.1.0",
     "typescript": "^5.4.5",

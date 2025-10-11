@@ -1,9 +1,8 @@
-import { Segmenter } from '@ja-to-en/domain';
+// Removed dependency on '@ja-to-en/domain'
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
 
-const segmenter = new Segmenter();
 let currentSelection: Selection | null = null;
 let progressEl: HTMLDivElement | null = null;
 const nodeMap = new Map<string, Text>();
@@ -96,11 +95,6 @@ const handleMouseUp = (event: MouseEvent) => {
 const handleClick = () => {
   const text = currentSelection?.toString().trim();
   if (!text) {
-    return;
-  }
-
-  const segments = segmenter.split(text);
-  if (segments.length === 0) {
     return;
   }
 
