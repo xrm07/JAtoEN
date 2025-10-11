@@ -21,8 +21,12 @@ async function main() {
 
   const executablePath = resolveChromePath();
   const browser = await puppeteer.launch({
-    headless: false, // Extensions require headful
+    headless: false, // Extensions require headful (run under xvfb in CI)
     executablePath,
+    // Puppeteer adds --disable-extensions by default; drop it so our MV3 loads
+    ignoreDefaultArgs: ['--disable-extensions'],
+    // Use a dedicated user data dir to ensure extension state is preserved during the run
+    userDataDir: path.join(repoRoot, '.e2e-profile'),
     args: [
       `--disable-extensions-except=${EXT_DIR}`,
       `--load-extension=${EXT_DIR}`,
@@ -34,10 +38,17 @@ async function main() {
   try {
     const page = await browser.newPage();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('#text', { timeout: 4000 });
 
     // Drag-select the test text to trigger button
     const handle = await page.$('#text');
+    if (!handle) {
+      throw new Error('[e2e] Could not find element with selector "#text"');
+    }
     const box = await handle.boundingBox();
+    if (!box) {
+      throw new Error('[e2e] Could not get bounding box for "#text"');
+    }
     await page.mouse.move(box.x + 5, box.y + 5);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width - 5, box.y + 5, { steps: 10 });
