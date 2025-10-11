@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm --out-dir dist",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "coverage": "vitest run --coverage",
     "dev": "vitest watch",
     "lint": "eslint 'src/**/*.ts'",

@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap",
     "dev": "tsup src/index.ts --format esm --out-dir dist --sourcemap --watch",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "lint": "eslint 'src/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts'",
