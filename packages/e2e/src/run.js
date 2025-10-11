@@ -28,6 +28,8 @@ async function main() {
     // Use a dedicated user data dir to ensure extension state is preserved during the run
     userDataDir: path.join(repoRoot, '.e2e-profile'),
     args: [
+      '--disable-features=DialMediaRouteProvider',
+      '--remote-debugging-port=0',
       `--disable-extensions-except=${EXT_DIR}`,
       `--load-extension=${EXT_DIR}`,
       '--no-sandbox',
@@ -38,7 +40,9 @@ async function main() {
   try {
     const page = await browser.newPage();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
-    await page.waitForSelector('#text', { timeout: 4000 });
+    await page.waitForSelector('#text', { timeout: 8000 });
+    // Wait for content script to inject the (hidden) selection button element
+    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 8000 });
 
     // Drag-select the test text to trigger button
     const handle = await page.$('#text');
@@ -54,8 +58,8 @@ async function main() {
     await page.mouse.move(box.x + box.width - 5, box.y + 5, { steps: 10 });
     await page.mouse.up();
 
-    // Wait and click overlay translate button
-    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 4000 });
+    // Wait until the selection button becomes visible and click it
+    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 8000, visible: true });
     await page.click('[data-xt-id="xt-selection-button"]');
 
     // Expect tooltip to show the echoed translation
