@@ -25,9 +25,10 @@ async function main() {
     executablePath,
     // Puppeteer adds --disable-extensions by default; drop it so our MV3 loads
     ignoreDefaultArgs: ['--disable-extensions'],
-    // Use a dedicated user data dir to ensure extension state is preserved during the run
-    userDataDir: path.join(repoRoot, '.e2e-profile'),
     args: [
+      `--user-data-dir=${path.join(repoRoot, '.e2e-profile')}`,
+      '--no-first-run',
+      '--no-default-browser-check',
       '--disable-features=DialMediaRouteProvider',
       '--remote-debugging-port=0',
       `--disable-extensions-except=${EXT_DIR}`,
@@ -38,7 +39,10 @@ async function main() {
   });
 
   try {
+    // Wait for extension service worker to be registered to ensure extension is alive
+    await waitForExtensionServiceWorker(browser, 30000);
     const page = await browser.newPage();
+    await page.bringToFront();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('#text', { timeout: 30000 });
     // Wait for content script to inject the (hidden) selection button element
@@ -187,3 +191,14 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
+async function waitForExtensionServiceWorker(browser, timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const targets = await browser.targets();
+    const ok = targets.some((t) => t.type() === 'service_worker' && t.url().startsWith('chrome-extension://'));
+    if (ok) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('Timed out waiting for extension service worker');
+}
