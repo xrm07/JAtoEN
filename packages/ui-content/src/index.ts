@@ -3,6 +3,13 @@
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
 
+const isValidSelection = (value: string): boolean => {
+  const normalized = value.normalize('NFKC').trim();
+  if (normalized.length === 0) return false;
+  // Require at least one letter or number to avoid punctuation-only selections
+  return /[\p{L}\p{N}]/u.test(normalized);
+};
+
 let currentSelection: Selection | null = null;
 let progressEl: HTMLDivElement | null = null;
 const nodeMap = new Map<string, Text>();
@@ -85,7 +92,7 @@ const showTooltip = (text: string, x: number, y: number) => {
 const handleMouseUp = (event: MouseEvent) => {
   currentSelection = document.getSelection();
   const text = currentSelection?.toString().trim();
-  if (text && text.length > 0) {
+  if (text && isValidSelection(text)) {
     showButton(event.clientX + 12, event.clientY + 12);
   } else {
     hideOverlays();
@@ -94,7 +101,7 @@ const handleMouseUp = (event: MouseEvent) => {
 
 const handleClick = () => {
   const text = currentSelection?.toString().trim();
-  if (!text) {
+  if (!text || !isValidSelection(text)) {
     return;
   }
 
