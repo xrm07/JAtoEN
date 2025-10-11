@@ -67,7 +67,7 @@ const handleMessage = async (
   sendResponse: (response: MsgTranslationResult | MsgProgress | { error: string }) => void
 ): Promise<void> => {
   if (message.type === 'translate.selection') {
-    await handleSelection(message, sendResponse);
+    await handleSelection(message, sender, sendResponse);
     return;
   }
 
@@ -78,22 +78,23 @@ const handleMessage = async (
 
 const handleSelection = async (
   message: MsgTranslateSelection,
+  sender: chrome.runtime.MessageSender,
   sendResponse: (response: MsgTranslationResult | { error: string }) => void
 ) => {
   const segments = segmenter.split(message.text);
   if (segments.length === 0) {
-    sendResponse({
-      type: 'translate.result',
-      id: message.id,
-      items: []
-    });
+    const result: MsgTranslationResult = { type: 'translate.result', id: message.id, items: [] };
+    if (sender.tab?.id) {
+      chrome.tabs.sendMessage(sender.tab.id, result);
+    }
+    sendResponse(result);
     return;
   }
 
   const cacheKey = buildCacheKey(message.pair, message.text);
   const cached = await cache.get(cacheKey);
   if (cached) {
-    sendResponse({
+    const result: MsgTranslationResult = {
       type: 'translate.result',
       id: message.id,
       items: [
@@ -102,12 +103,26 @@ const handleSelection = async (
           translated: cached.translated
         }
       ]
-    });
+    };
+    if (sender.tab?.id) {
+      chrome.tabs.sendMessage(sender.tab.id, result);
+    }
+    sendResponse(result);
     return;
   }
 
   const request = createRequestFromSegments(message.id, message.pair, segments);
-  await executeTranslation(request, cacheKey, sendResponse);
+  await executeTranslation(
+    request,
+    cacheKey,
+    (resp: MsgTranslationResult | { error: string }) => {
+      // Broadcast to content script for overlay handling
+      if ('type' in resp && sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, resp);
+      }
+      sendResponse(resp);
+    }
+  );
 };
 
 const handlePageTranslation = async (
@@ -170,7 +185,11 @@ const handlePageTranslation = async (
         } satisfies MsgProgress);
       }
     }
-    sendResponse({ type: 'translate.result', id: message.id, items: translatedItems });
+    const finalResult: MsgTranslationResult = { type: 'translate.result', id: message.id, items: translatedItems };
+    if (sender.tab?.id) {
+      chrome.tabs.sendMessage(sender.tab.id, finalResult);
+    }
+    sendResponse(finalResult);
   } catch (error) {
     sendResponse({ error: serializeError(error) });
   }

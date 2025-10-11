@@ -8,8 +8,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap && mv dist/index.js dist/content.js",
-    "dev": "tsup src/index.ts --format esm --out-dir dist --sourcemap --watch",
+    "build": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain && mv dist/index.global.js dist/content.js",
+    "dev": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain --watch",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint 'src/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",

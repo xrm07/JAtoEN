@@ -2,7 +2,6 @@ import { Segmenter } from '@ja-to-en/domain';
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
-const PROGRESS_ID = 'xt-progress';
 
 const segmenter = new Segmenter();
 let currentSelection: Selection | null = null;
