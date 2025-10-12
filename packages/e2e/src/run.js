@@ -63,8 +63,23 @@ async function main() {
       console.warn('[e2e] service worker did not appear within timeout:', e?.message || e)
     );
     await page.waitForSelector('#text', { timeout: 30000 });
-    // Wait for content script to inject the (hidden) selection button element
-    await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 30000 });
+    // Wait for content script to inject the (hidden) selection button element.
+    // Implement one reload fallback to avoid races on first navigation after extension load.
+    const selectionBtnSel = '[data-xt-id="xt-selection-button"]';
+    const quickTimeout = 5000;
+    const longTimeout = 30000;
+    let injected = false;
+    try {
+      await page.waitForSelector(selectionBtnSel, { timeout: quickTimeout });
+      injected = true;
+    } catch {
+      console.warn('[e2e] content script not detected, reloading page once to allow injection');
+      await page.reload({ waitUntil: 'networkidle0' });
+      await page.waitForSelector('#text', { timeout: 30000 });
+    }
+    if (!injected) {
+      await page.waitForSelector(selectionBtnSel, { timeout: longTimeout });
+    }
 
     // Drag-select the test text to trigger button
     const handle = await page.$('#text');
