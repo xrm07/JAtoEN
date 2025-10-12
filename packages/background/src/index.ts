@@ -261,9 +261,17 @@ const serializeError = (error: unknown): string => {
   return 'Unknown error';
 };
 
+// Single runtime.onMessage listener to handle all background messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  void handleMessage(message as BackgroundMessage, sender, sendResponse);
-  return true;
+  if (message?.type === 'stats.get') {
+    void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
+    return true;
+  }
+  if (message && typeof message.type === 'string' && message.type.startsWith('translate.')) {
+    void handleMessage(message as BackgroundMessage, sender, sendResponse as never);
+    return true;
+  }
+  return false;
 });
 
 // Load persisted settings
@@ -324,13 +332,4 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     chrome.tabs.sendMessage(tab.id, { type: 'content.startPageTranslation' });
   }
 });
-
-// Stats endpoint for popup
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'stats.get') {
-    void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
-    return true;
-  }
-  // no test-only message types in production
-  return undefined;
-});
+// (stats.get handled in unified onMessage above)

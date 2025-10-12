@@ -1,14 +1,13 @@
-# TODO after syncing to latest PR
+# TODO tracker after PR split
 
-This workspace was synchronized to the latest PR head to match GitHub.
+This project now has two active PR tracks:
 
-- Branch: `feat/e2e-puppeteer`
-- Remote: `origin`
-- Commit: `8f5a5a0` (2025-10-12 05:53:04 +0000)
+- PR #4: test(e2e) — E2E harness + CI hardening (dynamic stub port, popup pre‑warm, programmatic injection for localhost, richer logs).
+- PR #5: feat — Translation MVP (product‑only). No E2E harness inside this PR to keep review focused.
 
-The following items had been implemented locally but were intentionally rolled back to align with the PR. Track and re-apply as needed according to requirements.txt.
+Use this file to coordinate re‑application of spec items and to track follow‑ups across both PRs.
 
-## Spec Alignment Tasks
+## Spec Alignment Tasks (Product, PR #5)
 
 - [ ] Cache defaults (TTL/size)
   - Set defaults to TTL 30 days and 50MB.
@@ -20,9 +19,9 @@ The following items had been implemented locally but were intentionally rolled b
   - File: `packages/domain/src/index.ts`.
   - Tests: add unit test for round-trip split/join.
 
-- [ ] Host permissions
+- [x] Host permissions
   - Restrict to `http://localhost:1234/*` per requirements.
-  - File: `packages/background/public/manifest.json`.
+  - Done in PR #5 branch: `packages/background/public/manifest.json`.
 
 - [ ] Content script: dynamic translation + toggle
   - Add `MutationObserver` to incrementally translate new/changed Text nodes after page translation starts.
@@ -47,13 +46,23 @@ The following items had been implemented locally but were intentionally rolled b
 - [ ] LM Studio client docs
   - Add `packages/infra-lmstudio/README.md` documenting defaults (baseUrl, temperature, model) and retry/concurrency behavior.
 
-- [ ] E2E coverage additions
-  - Cover popup CTAs, toggle original, and cache clear behavior using the stub LM Studio server.
-  - File: `packages/e2e/src/run.js` (extend scenarios).
+## E2E/CI Tasks (PR #4)
+
+- [x] Fix runner SyntaxError (TS cast in JS)
+  - Removed `as string | undefined` in `packages/e2e/src/run.js`.
+- [x] Add xvfb E2E step in CI workflow
+  - `xvfb-run -a -s "-screen 0 1280x800x24" pnpm test:e2e`.
+- [x] Dynamic stub port wiring
+  - Runner writes `e2e-settings.json`; SW reads and logs override.
+- [x] Manifest widened for test ports
+  - `http://localhost/*` only in PR #4 to allow random ports.
+- [ ] Stabilize content injection
+  - Verify SW registration log appears; if flaky, increase pre‑nav delay and reload attempts.
+- [ ] Extend E2E scenarios
+  - Cover popup CTAs, toggle original, and cache clear behavior.
 
 ## Notes
 
 - Concurrency target remains 2 in-flight requests per client instance.
 - Keep all cross-context messaging names consistent with the contract in requirements.txt.
 - Ensure unit coverage targets (≥90% for domain/cache) remain satisfied after re-applying changes.
-

@@ -5,14 +5,18 @@ console.log('[xt] cs:init state=', document.readyState);
 declare global { interface Window { __xtInit?: boolean } }
 
 /**
- * document.body が利用可能になったタイミングでコールバックを実行する。
- * body が既に存在する場合は直ちに実行し、存在しない場合は DOMContentLoaded 後に実行する。
+ * Execute callback when document.body is available.
+ * If body exists now, run immediately; otherwise wait for DOMContentLoaded.
  */
 const withBody = (fn: (body: HTMLElement) => void) => {
+  const run = () => {
+    const body = document.body as HTMLElement | null;
+    if (body) fn(body);
+  };
   if (document.body) {
-    fn(document.body);
+    run();
   } else {
-    document.addEventListener('DOMContentLoaded', () => fn(document.body as HTMLElement), { once: true });
+    document.addEventListener('DOMContentLoaded', run, { once: true });
   }
 };
 
