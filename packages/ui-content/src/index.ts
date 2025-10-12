@@ -23,8 +23,7 @@ const initOnce = () => {
   chrome.runtime.onMessage.addListener((message) => {
     handleRuntimeMessage(message as never);
   });
-  // Wake up the service worker early and establish a channel
-  void chrome.runtime.sendMessage({ type: 'content.ping', href: location.href }).catch(() => undefined);
+  // Normal production boot has no E2E ping
   // Commands from background
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === 'content.startPageTranslation') {
@@ -173,10 +172,7 @@ const handleRuntimeMessage = (
     }
     if (progressEl) progressEl.style.display = 'none';
   }
-  if (message.type === 'content.pong') {
-    // eslint-disable-next-line no-console
-    console.log('[xt] content.pong received');
-  }
+  // no test-only messages
 };
 
 if (!window.__xtInit) {
