@@ -9,7 +9,8 @@
     "storage",
     "scripting",
     "activeTab",
-    "contextMenus"
+    "contextMenus",
+    "webNavigation"
   ],
   "host_permissions": [
     "http://localhost:1234/*"

@@ -311,6 +311,27 @@ const ensureContentScriptRegistration = async () => {
 
 void ensureContentScriptRegistration();
 
+// As an extra guard in CI, programmatically inject the content script when a
+// top-level navigation to localhost commits. Content script itself guards
+// duplicate initialization.
+chrome.webNavigation.onCommitted.addListener(async (details) => {
+  try {
+    if (details.frameId !== 0) return;
+    const url = new URL(details.url);
+    if (url.hostname !== 'localhost') return;
+    await chrome.scripting.executeScript({
+      target: { tabId: details.tabId, frameIds: [0] },
+      files: ['content.js'],
+      world: 'ISOLATED',
+    });
+    // eslint-disable-next-line no-console
+    console.log('[e2e] injected content.js via webNavigation for', details.url);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[e2e] failed to inject content.js:', (e as Error)?.message || e);
+  }
+});
+
 // Load E2E overrides (written by Puppeteer runner) to propagate stub port
 const loadE2EOverrides = async () => {
   try {
