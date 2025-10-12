@@ -1,7 +1,13 @@
 import { isValidSelection } from '@ja-to-en/domain';
-// eslint-disable-next-line no-console
-console.log('[xt] content script boot:', location.href);
 declare global { interface Window { __xtInit?: boolean } }
+
+const withBody = (fn: () => void) => {
+  if (document.body) {
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+};
 
 const initOnce = () => {
   ensureButton().addEventListener('click', handleClick);
@@ -55,7 +61,7 @@ const ensureButton = (): HTMLButtonElement => {
   button.style.fontSize = '12px';
   button.style.display = 'none';
   button.style.cursor = 'pointer';
-  document.body.appendChild(button);
+  withBody(() => document.body!.appendChild(button));
   return button;
 };
 
@@ -78,7 +84,7 @@ const ensureTooltip = (): HTMLDivElement => {
   tooltip.style.lineHeight = '1.4';
   tooltip.style.display = 'none';
   tooltip.style.zIndex = '2147483647';
-  document.body.appendChild(tooltip);
+  withBody(() => document.body!.appendChild(tooltip));
   return tooltip;
 };
 
@@ -87,7 +93,7 @@ const ensureProgress = (): HTMLDivElement => {
   const el = document.createElement('div');
   el.dataset.xtRole = 'xt-progress';
   el.style.display = 'none';
-  document.body.appendChild(el);
+  withBody(() => document.body!.appendChild(el));
   progressEl = el;
   return el;
 };
@@ -166,7 +172,16 @@ const handleRuntimeMessage = (
 
 if (!window.__xtInit) {
   window.__xtInit = true;
-  initOnce();
+  withBody(() => {
+    try {
+      initOnce();
+      // eslint-disable-next-line no-console
+      console.log('[xt] content script boot:', location.href);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[xt] init error:', (e as Error)?.message || e);
+    }
+  });
 }
 
 const startFullPageTranslation = async () => {
