@@ -50,8 +50,8 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test (exclude e2e)
-        run: pnpm -r --if-present --filter "!@ja-to-en/e2e" run test
+      - name: Test (unit only)
+        run: pnpm run test:unit
 
       - name: Build
         run: pnpm build
