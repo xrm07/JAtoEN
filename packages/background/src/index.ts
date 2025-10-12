@@ -58,7 +58,7 @@ const segmenter = new Segmenter();
 const cache = createCacheRepository();
 
 let lmBaseUrl: string | undefined;
-let overridesReady: Promise<void | undefined> | undefined;
+const e2eOverridesReady: Promise<void | undefined> = loadE2EOverrides().catch(() => undefined);
 
 const getClient = (): LMStudioClient =>
   new LMStudioClient({
@@ -170,7 +170,7 @@ const handlePageTranslation = async (
 
   try {
     // Ensure E2E overrides (if any) are loaded before first request
-    await loadE2EOverrides().catch(() => undefined);
+    await e2eOverridesReady;
     // Batch to respect token limits; simple fixed size grouping for now
     const batchSize = 20;
     const translatedItems: Array<{ id: string; translated: string }> = [];
@@ -226,7 +226,7 @@ const executeTranslation = async (
   sendResponse: (response: MsgTranslationResult | { error: string }) => void
 ) => {
   try {
-    await loadE2EOverrides().catch(() => undefined);
+    await e2eOverridesReady;
     const client = getClient();
     const result = await client.translate(request);
     const combinedText = result.items.map((item) => item.translated).join('\n');
@@ -329,7 +329,8 @@ const loadE2EOverrides = async () => {
   }
 };
 
-overridesReady = overridesReady ?? loadE2EOverrides().catch(() => undefined);
+// Trigger the E2E overrides loading early; consumers await e2eOverridesReady
+void e2eOverridesReady;
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
