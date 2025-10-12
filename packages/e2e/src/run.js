@@ -49,16 +49,19 @@ async function main() {
   try {
     // Capture extension service worker console/log output in CI logs
     await captureExtensionServiceWorkerLogs(browser);
+    // Prefer to see the MV3 service worker at least once before first navigation
+    try {
+      await waitForExtensionServiceWorker(browser, 20000);
+    } catch (e) {
+      console.warn('[e2e] SW not detected before navigation; continuing anyway:', e?.message || e);
+    }
     const page = await browser.newPage();
     // Surface console/page errors to CI logs
     page.on('console', (msg) => console.log(`[console] ${msg.type()}: ${msg.text()}`));
     page.on('pageerror', (err) => console.error('[pageerror]', err.message));
     await page.bringToFront();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
-    // In some Chrome versions, the MV3 service worker may not spin up until
-    // the extension receives an event (e.g., a runtime message). Since our
-    // flow triggers a message after selection, don't hard-block on SW here.
-    // Best-effort: start waiting in the background and log if it never appears.
+    // Keep watching in background to log if the SW never appears after nav
     void waitForExtensionServiceWorker(browser, 60000).catch((e) =>
       console.warn('[e2e] service worker did not appear within timeout:', e?.message || e)
     );
