@@ -21,17 +21,15 @@ const initOnce = () => {
     }
   });
   chrome.runtime.onMessage.addListener((message) => {
-    handleRuntimeMessage(message as never);
-  });
-  // Normal production boot has no E2E ping
-  // Commands from background
-  chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === 'content.startPageTranslation') {
       void startFullPageTranslation();
+      return;
     }
     if (message?.type === 'content.translateSelection') {
       handleClick();
+      return;
     }
+    handleRuntimeMessage(message as never);
   });
   // Testing hook: allow the page to dispatch a custom event to start full-page translation
   window.addEventListener('xt:translate-page', () => {
@@ -65,7 +63,7 @@ const ensureButton = (): HTMLButtonElement => {
   button.style.fontSize = '12px';
   button.style.display = 'none';
   button.style.cursor = 'pointer';
-  withBody(() => document.body!.appendChild(button));
+  withBody(() => document.body.appendChild(button));
   return button;
 };
 
@@ -88,7 +86,7 @@ const ensureTooltip = (): HTMLDivElement => {
   tooltip.style.lineHeight = '1.4';
   tooltip.style.display = 'none';
   tooltip.style.zIndex = '2147483647';
-  withBody(() => document.body!.appendChild(tooltip));
+  withBody(() => document.body.appendChild(tooltip));
   return tooltip;
 };
 
@@ -97,7 +95,7 @@ const ensureProgress = (): HTMLDivElement => {
   const el = document.createElement('div');
   el.dataset.xtRole = 'xt-progress';
   el.style.display = 'none';
-  withBody(() => document.body!.appendChild(el));
+  withBody(() => document.body.appendChild(el));
   progressEl = el;
   return el;
 };
@@ -148,9 +146,11 @@ const handleClick = () => {
   });
 };
 
-const handleRuntimeMessage = (
-  message: { type: string; id?: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
-) => {
+type MsgTranslateProgress = { type: 'translate.progress'; id: string; done: number; total: number };
+type MsgTranslateResult = { type: 'translate.result'; id: string; items: Array<{ id: string; translated: string }> };
+type IncomingMessage = MsgTranslateProgress | MsgTranslateResult | { type: string };
+
+const handleRuntimeMessage = (message: IncomingMessage) => {
   if (message.type === 'translate.progress') {
     const el = ensureProgress();
     el.textContent = `Translating ${message.done}/${message.total}`;
@@ -159,14 +159,14 @@ const handleRuntimeMessage = (
   }
 
   if (message.type === 'translate.result') {
-    if (message.items?.length && currentSelection?.rangeCount) {
+    if (message.items.length && currentSelection?.rangeCount) {
       const range = currentSelection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
       showTooltip(message.items[0]?.translated ?? '', rect.left, rect.top);
     }
 
     // Page translation result: replace mapped nodes
-    for (const item of message.items ?? []) {
+    for (const item of message.items) {
       const node = nodeMap.get(item.id);
       if (node) node.textContent = item.translated;
     }

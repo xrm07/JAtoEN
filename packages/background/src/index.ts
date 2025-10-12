@@ -313,7 +313,6 @@ chrome.runtime.onInstalled.addListener(() => {
   try { chrome.contextMenus.removeAll(); } catch { /* noop */ }
   chrome.contextMenus.create({ id: 'xt-translate-selection', title: 'Translate selection', contexts: ['selection'] });
   chrome.contextMenus.create({ id: 'xt-translate-page', title: 'Translate entire page', contexts: ['page'] });
-  void ensureContentScriptRegistration();
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
