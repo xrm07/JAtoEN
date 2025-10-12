@@ -1,4 +1,7 @@
 import { isValidSelection } from '@ja-to-en/domain';
+// Early boot log (before body)
+// eslint-disable-next-line no-console
+console.log('[xt] cs:init state=', document.readyState);
 declare global { interface Window { __xtInit?: boolean } }
 
 const withBody = (fn: () => void) => {

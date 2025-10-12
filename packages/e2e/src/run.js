@@ -39,6 +39,9 @@ async function main() {
       '--no-default-browser-check',
       '--disable-features=DialMediaRouteProvider',
       '--remote-debugging-port=0',
+      '--enable-logging=stderr',
+      '--v=1',
+      '--vmodule=*extensions*=2',
       `--disable-extensions-except=${EXT_DIR}`,
       `--load-extension=${EXT_DIR}`,
       '--no-sandbox',
@@ -49,6 +52,9 @@ async function main() {
   try {
     // Capture extension service worker console/log output in CI logs
     await captureExtensionServiceWorkerLogs(browser);
+    // Small pause to allow Chrome to register the extension before first nav
+    await new Promise((r) => setTimeout(r, 1500));
+    await dumpTargets(browser, '[e2e] targets before nav');
     // Prefer to see the MV3 service worker at least once before first navigation
     try {
       await waitForExtensionServiceWorker(browser, 20000);
@@ -67,21 +73,22 @@ async function main() {
     );
     await page.waitForSelector('#text', { timeout: 30000 });
     // Wait for content script to inject the (hidden) selection button element.
-    // Implement one reload fallback to avoid races on first navigation after extension load.
+    // Implement multi reload fallback to avoid races on first navigation after extension load.
     const selectionBtnSel = '[data-xt-id="xt-selection-button"]';
     const quickTimeout = 5000;
     const longTimeout = 30000;
-    let injected = false;
-    try {
-      await page.waitForSelector(selectionBtnSel, { timeout: quickTimeout });
-      injected = true;
-    } catch {
-      console.warn('[e2e] content script not detected, reloading page once to allow injection');
-      await page.reload({ waitUntil: 'networkidle0' });
-      await page.waitForSelector('#text', { timeout: 30000 });
-    }
-    if (!injected) {
-      await page.waitForSelector(selectionBtnSel, { timeout: longTimeout });
+    const maxReloads = 2;
+    for (let attempt = 0; attempt <= maxReloads; attempt += 1) {
+      try {
+        await page.waitForSelector(selectionBtnSel, { timeout: attempt === 0 ? quickTimeout : longTimeout });
+        break; // injected
+      } catch {
+        if (attempt === maxReloads) throw new Error('content script not detected after reloads');
+        console.warn(`[e2e] content script not detected, reloading page (attempt ${attempt + 1}/${maxReloads})`);
+        await page.reload({ waitUntil: 'networkidle0' });
+        await dumpTargets(browser, `[e2e] targets after reload ${attempt + 1}`);
+        await page.waitForSelector('#text', { timeout: 30000 });
+      }
     }
 
     // Drag-select the test text to trigger button
@@ -249,6 +256,16 @@ async function waitForExtensionServiceWorker(browser, timeoutMs) {
     await new Promise((r) => setTimeout(r, 250));
   }
   throw new Error('Timed out waiting for extension service worker');
+}
+
+async function dumpTargets(browser, label) {
+  try {
+    const targets = await browser.targets();
+    const summary = targets.map((t) => `${t.type()}:${t.url()}`).join('\n');
+    console.log(label + "\n" + summary);
+  } catch (e) {
+    console.warn('[e2e] failed to dump targets:', e?.message || e);
+  }
 }
 
 async function captureExtensionServiceWorkerLogs(browser) {
