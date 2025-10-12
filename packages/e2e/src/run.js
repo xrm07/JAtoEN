@@ -295,7 +295,7 @@ async function resolveExtensionId(userDir, extDir, attempts = 20, intervalMs = 2
       for (const [id, info] of Object.entries(settings)) {
         // Chrome stores absolute 'path' for unpacked extensions
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const p = (info && /** @type {any} */ (info).path) as string | undefined;
+        const p = info && /** @type {any} */ (info).path;
         if (p && path.resolve(p) === path.resolve(extDir)) {
           return id;
         }

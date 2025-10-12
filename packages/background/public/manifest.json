@@ -14,7 +14,7 @@
     "tabs"
   ],
   "host_permissions": [
-    "http://localhost:1234/*"
+    "http://localhost/*"
   ],
   "background": {
     "service_worker": "background.js",
