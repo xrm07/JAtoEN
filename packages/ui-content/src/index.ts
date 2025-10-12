@@ -4,11 +4,15 @@ import { isValidSelection } from '@ja-to-en/domain';
 console.log('[xt] cs:init state=', document.readyState);
 declare global { interface Window { __xtInit?: boolean } }
 
-const withBody = (fn: () => void) => {
+/**
+ * document.body が利用可能になったタイミングでコールバックを実行する。
+ * body が既に存在する場合は直ちに実行し、存在しない場合は DOMContentLoaded 後に実行する。
+ */
+const withBody = (fn: (body: HTMLElement) => void) => {
   if (document.body) {
-    fn();
+    fn(document.body);
   } else {
-    document.addEventListener('DOMContentLoaded', fn, { once: true });
+    document.addEventListener('DOMContentLoaded', () => fn(document.body as HTMLElement), { once: true });
   }
 };
 
@@ -63,7 +67,7 @@ const ensureButton = (): HTMLButtonElement => {
   button.style.fontSize = '12px';
   button.style.display = 'none';
   button.style.cursor = 'pointer';
-  withBody(() => document.body.appendChild(button));
+  withBody((body) => body.appendChild(button));
   return button;
 };
 
@@ -86,7 +90,7 @@ const ensureTooltip = (): HTMLDivElement => {
   tooltip.style.lineHeight = '1.4';
   tooltip.style.display = 'none';
   tooltip.style.zIndex = '2147483647';
-  withBody(() => document.body.appendChild(tooltip));
+  withBody((body) => body.appendChild(tooltip));
   return tooltip;
 };
 
@@ -95,7 +99,7 @@ const ensureProgress = (): HTMLDivElement => {
   const el = document.createElement('div');
   el.dataset.xtRole = 'xt-progress';
   el.style.display = 'none';
-  withBody(() => document.body.appendChild(el));
+  withBody((body) => body.appendChild(el));
   progressEl = el;
   return el;
 };

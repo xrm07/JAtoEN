@@ -48,8 +48,7 @@
     {
       "resources": [
         "overlay.css",
-        "icons/*.svg",
-        "e2e-settings.json"
+        "icons/*.svg"
       ],
       "matches": [
         "<all_urls>"

@@ -9,7 +9,6 @@ const manifestSrc = join(pkgRoot, 'public', 'manifest.json');
 const backgroundJs = join(pkgRoot, 'dist', 'background.js');
 const contentJs = join(pkgRoot, '..', 'ui-content', 'dist', 'content.js');
 const overlayCss = join(pkgRoot, '..', 'ui-content', 'src', 'overlay.css');
-const e2eSettings = join(pkgRoot, 'dist', 'e2e-settings.json');
 const popupDist = join(pkgRoot, '..', 'ui-popup', 'dist');
 
 if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });

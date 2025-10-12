@@ -124,6 +124,13 @@ export const buildTranslationResult = (
   };
 };
 
+/**
+ * 選択文字列が意味のある内容を含むかを検証する。
+ *
+ * - 先に NFKC 正規化と trim を行う
+ * - 空や空白のみは false
+ * - 少なくとも1つのUnicodeの文字(\p{L})または数字(\p{N})を含めば true
+ */
 export const isValidSelection = (value: string): boolean => {
   const normalized = value.normalize('NFKC').trim();
   if (normalized.length === 0) return false;

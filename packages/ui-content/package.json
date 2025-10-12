@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain && node -e \"require('fs').renameSync('dist/index.global.js','dist/content.js')\"",
-    "dev": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain --watch",
+    "dev": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain --watch --onSuccess \"node -e 'require(\"fs\").renameSync(\"dist/index.global.js\",\"dist/content.js\")'\"",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint 'src/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",
