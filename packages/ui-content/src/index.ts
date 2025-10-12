@@ -23,6 +23,8 @@ const initOnce = () => {
   chrome.runtime.onMessage.addListener((message) => {
     handleRuntimeMessage(message as never);
   });
+  // Wake up the service worker early and establish a channel
+  void chrome.runtime.sendMessage({ type: 'content.ping', href: location.href }).catch(() => undefined);
   // Commands from background
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === 'content.startPageTranslation') {
@@ -148,7 +150,7 @@ const handleClick = () => {
 };
 
 const handleRuntimeMessage = (
-  message: { type: string; id: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
+  message: { type: string; id?: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
 ) => {
   if (message.type === 'translate.progress') {
     const el = ensureProgress();
@@ -170,6 +172,10 @@ const handleRuntimeMessage = (
       if (node) node.textContent = item.translated;
     }
     if (progressEl) progressEl.style.display = 'none';
+  }
+  if (message.type === 'content.pong') {
+    // eslint-disable-next-line no-console
+    console.log('[xt] content.pong received');
   }
 };
 

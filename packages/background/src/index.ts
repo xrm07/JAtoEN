@@ -420,5 +420,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
     return true;
   }
+  if (message?.type === 'content.ping') {
+    // eslint-disable-next-line no-console
+    console.log('[e2e] content.ping from', typeof message?.href === 'string' ? message.href : 'unknown');
+    try {
+      if (_sender?.tab?.id) {
+        void chrome.tabs.sendMessage(_sender.tab.id, { type: 'content.pong' });
+      }
+    } catch {}
+    sendResponse({ ok: true });
+    return true;
+  }
   return undefined;
 });
