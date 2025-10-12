@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../..');
 
 const EXT_DIR = path.join(repoRoot, 'packages/background/dist');
+const USER_DATA_DIR = path.join(repoRoot, '.e2e-profile');
 
 async function main() {
   // Ensure extension artifacts exist
@@ -34,7 +35,7 @@ async function main() {
     // Puppeteer adds --disable-extensions by default; drop it so our MV3 loads
     ignoreDefaultArgs: ['--disable-extensions'],
     args: [
-      `--user-data-dir=${path.join(repoRoot, '.e2e-profile')}`,
+      `--user-data-dir=${USER_DATA_DIR}`,
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-features=DialMediaRouteProvider',
@@ -52,6 +53,21 @@ async function main() {
   try {
     // Capture extension service worker console/log output in CI logs
     await captureExtensionServiceWorkerLogs(browser);
+    // Force extension registration by opening its popup via resolved extension ID
+    try {
+      const extId = await resolveExtensionId(USER_DATA_DIR, EXT_DIR, 40, 250);
+      if (extId) {
+        const extPage = await browser.newPage();
+        await extPage.goto(`chrome-extension://${extId}/popup.html`);
+        console.log('[e2e] opened extension popup to force registration', extId);
+        await new Promise((r) => setTimeout(r, 500));
+        await extPage.close();
+      } else {
+        console.warn('[e2e] failed to resolve extension id before navigation');
+      }
+    } catch (e) {
+      console.warn('[e2e] extension id resolution error:', e?.message || e);
+    }
     // Small pause to allow Chrome to register the extension before first nav
     await new Promise((r) => setTimeout(r, 1500));
     await dumpTargets(browser, '[e2e] targets before nav');
@@ -266,6 +282,30 @@ async function dumpTargets(browser, label) {
   } catch (e) {
     console.warn('[e2e] failed to dump targets:', e?.message || e);
   }
+}
+
+import { readFile } from 'node:fs/promises';
+async function resolveExtensionId(userDir, extDir, attempts = 20, intervalMs = 250) {
+  const prefsPath = path.join(userDir, 'Default', 'Preferences');
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const buf = await readFile(prefsPath, 'utf8');
+      const prefs = JSON.parse(buf);
+      const settings = prefs?.extensions?.settings ?? {};
+      for (const [id, info] of Object.entries(settings)) {
+        // Chrome stores absolute 'path' for unpacked extensions
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const p = (info && /** @type {any} */ (info).path) as string | undefined;
+        if (p && path.resolve(p) === path.resolve(extDir)) {
+          return id;
+        }
+      }
+    } catch {
+      // ignore and retry
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return undefined;
 }
 
 async function captureExtensionServiceWorkerLogs(browser) {
