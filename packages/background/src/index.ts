@@ -58,7 +58,6 @@ const segmenter = new Segmenter();
 const cache = createCacheRepository();
 
 let lmBaseUrl: string | undefined;
-let overridesReady: Promise<void> | undefined;
 
 const getClient = (): LMStudioClient =>
   new LMStudioClient({
@@ -169,10 +168,11 @@ const handlePageTranslation = async (
   );
 
   try {
+    // Ensure E2E overrides (if any) are loaded before first request
+    await loadE2EOverrides().catch(() => undefined);
     // Batch to respect token limits; simple fixed size grouping for now
     const batchSize = 20;
     const translatedItems: Array<{ id: string; translated: string }> = [];
-    await (overridesReady ?? Promise.resolve());
     const client = getClient();
     for (let i = 0; i < request.segments.length; i += batchSize) {
       const slice = request.segments.slice(i, i + batchSize);
@@ -225,7 +225,7 @@ const executeTranslation = async (
   sendResponse: (response: MsgTranslationResult | { error: string }) => void
 ) => {
   try {
-    await (overridesReady ?? Promise.resolve());
+    await loadE2EOverrides().catch(() => undefined);
     const client = getClient();
     const result = await client.translate(request);
     const combinedText = result.items.map((item) => item.translated).join('\n');
