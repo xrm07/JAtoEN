@@ -58,6 +58,7 @@ const segmenter = new Segmenter();
 const cache = createCacheRepository();
 
 let lmBaseUrl: string | undefined;
+let overridesReady: Promise<void | undefined> | undefined;
 
 const getClient = (): LMStudioClient =>
   new LMStudioClient({
