@@ -1,17 +1,9 @@
-// Removed dependency on '@ja-to-en/domain'
-// Debug log to help E2E/CI verify injection
-// eslint-disable-next-line no-console
-console.log('[xt] content script loaded');
+import { isValidSelection } from '@ja-to-en/domain';
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
 
-const isValidSelection = (value: string): boolean => {
-  const normalized = value.normalize('NFKC').trim();
-  if (normalized.length === 0) return false;
-  // Require at least one letter or number to avoid punctuation-only selections
-  return /[\p{L}\p{N}]/u.test(normalized);
-};
+// use domain-level validation
 
 let currentSelection: Selection | null = null;
 let progressEl: HTMLDivElement | null = null;

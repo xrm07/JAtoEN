@@ -12,7 +12,7 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "http://localhost/*"
+    "http://localhost:1234/*"
   ],
   "background": {
     "service_worker": "background.js",

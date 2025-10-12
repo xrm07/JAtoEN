@@ -22,12 +22,13 @@ async function main() {
   }
 
   const { server, port } = await startStubServer();
+  let browser;
 
   // Write e2e-settings.json BEFORE launching Chrome so the service worker can read it at startup
   await writeE2ESettings(EXT_DIR, port);
 
   const executablePath = resolveChromePath();
-  const browser = await puppeteer.launch({
+  browser = await puppeteer.launch({
     headless: false, // Extensions require headful (run under xvfb in CI)
     executablePath,
     // Puppeteer adds --disable-extensions by default; drop it so our MV3 loads
@@ -108,10 +109,12 @@ async function main() {
     );
     console.log('[e2e] PASS full-page translation progress flow');
   } finally {
-    try {
-      await browser.close();
-    } catch (e) {
-      console.error('[e2e] Failed to close browser:', e);
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error('[e2e] Failed to close browser:', e);
+      }
     }
     try {
       await new Promise((r) => server.close(r));

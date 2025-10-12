@@ -27,9 +27,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint
@@ -73,9 +75,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
           
       - name: Install
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Build extension (workspace)
         run: pnpm build
       - name: Run E2E (xvfb)
