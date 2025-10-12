@@ -10,7 +10,8 @@
     "scripting",
     "activeTab",
     "contextMenus",
-    "webNavigation"
+    "webNavigation",
+    "tabs"
   ],
   "host_permissions": [
     "http://localhost:1234/*"

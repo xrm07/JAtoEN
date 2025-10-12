@@ -332,6 +332,27 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   }
 });
 
+// Secondary safety net: inject content.js when tab finishes loading a localhost page.
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  try {
+    if (changeInfo.status !== 'complete') return;
+    const urlStr = tab?.url;
+    if (!urlStr) return;
+    const url = new URL(urlStr);
+    if (url.hostname !== 'localhost') return;
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      files: ['content.js'],
+      world: 'ISOLATED',
+    });
+    // eslint-disable-next-line no-console
+    console.log('[e2e] injected content.js via tabs.onUpdated for', urlStr);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[e2e] tabs.onUpdated injection failed:', (e as Error)?.message || e);
+  }
+});
+
 // Load E2E overrides (written by Puppeteer runner) to propagate stub port
 const loadE2EOverrides = async () => {
   try {
