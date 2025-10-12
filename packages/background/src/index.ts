@@ -292,8 +292,8 @@ const ensureContentScriptRegistration = async () => {
         {
           id: 'xt-auto',
           js: ['content.js'],
-          matches: ['http://*/*', 'https://*/*'],
-          runAt: 'document_idle',
+          matches: ['http://localhost/*'],
+          runAt: 'document_start',
           allFrames: false,
           persistAcrossSessions: true,
           world: 'ISOLATED',

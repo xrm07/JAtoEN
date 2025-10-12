@@ -1,4 +1,6 @@
 import { isValidSelection } from '@ja-to-en/domain';
+// eslint-disable-next-line no-console
+console.log('[xt] content script boot:', location.href);
 declare global { interface Window { __xtInit?: boolean } }
 
 const initOnce = () => {
