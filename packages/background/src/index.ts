@@ -427,7 +427,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (_sender?.tab?.id) {
         void chrome.tabs.sendMessage(_sender.tab.id, { type: 'content.pong' });
       }
-    } catch {}
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[e2e] failed to send content.pong:', (e as Error)?.message || e);
+    }
     sendResponse({ ok: true });
     return true;
   }
