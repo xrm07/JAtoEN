@@ -47,6 +47,8 @@ async function main() {
   });
 
   try {
+    // Capture extension service worker console/log output in CI logs
+    await captureExtensionServiceWorkerLogs(browser);
     // Ensure the MV3 background service worker is running before navigation
     await waitForExtensionServiceWorker(browser, 60000);
     const page = await browser.newPage();
@@ -224,4 +226,32 @@ async function waitForExtensionServiceWorker(browser, timeoutMs) {
     await new Promise((r) => setTimeout(r, 250));
   }
   throw new Error('Timed out waiting for extension service worker');
+}
+
+async function captureExtensionServiceWorkerLogs(browser) {
+  const attach = async (target) => {
+    try {
+      if (target.type() !== 'service_worker') return;
+      if (!target.url().startsWith('chrome-extension://')) return;
+      const client = await target.createCDPSession();
+      await client.send('Runtime.enable');
+      await client.send('Log.enable');
+      client.on('Runtime.consoleAPICalled', (ev) => {
+        const args = (ev.args || []).map((a) => a.value ?? a.description).join(' ');
+        console.log(`[sw][console:${ev.type}] ${args}`);
+      });
+      client.on('Log.entryAdded', (payload) => {
+        const e = payload.entry;
+        console.log(`[sw][log:${e.level}] ${e.text}`);
+      });
+    } catch (e) {
+      console.warn('[e2e] Failed to attach to SW logs:', e?.message || e);
+    }
+  };
+
+  // Attach to already-existing targets
+  const targets = await browser.targets();
+  await Promise.all(targets.map(attach));
+  // Attach to future service workers (MV3 worker restarts)
+  browser.on('targetcreated', attach);
 }

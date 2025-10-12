@@ -291,6 +291,8 @@ const loadE2EOverrides = async () => {
       const json = (await res.json()) as { baseUrl?: string };
       if (typeof json.baseUrl === 'string' && json.baseUrl.length > 0) {
         lmBaseUrl = json.baseUrl;
+        // eslint-disable-next-line no-console
+        console.log('[e2e] LM baseUrl override:', lmBaseUrl);
       }
     }
   } catch {
