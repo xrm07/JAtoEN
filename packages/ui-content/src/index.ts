@@ -1,4 +1,31 @@
 import { isValidSelection } from '@ja-to-en/domain';
+declare global { interface Window { __xtInit?: boolean } }
+
+const initOnce = () => {
+  ensureButton().addEventListener('click', handleClick);
+  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener('keyup', (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      hideOverlays();
+    }
+  });
+  chrome.runtime.onMessage.addListener((message) => {
+    handleRuntimeMessage(message as never);
+  });
+  // Commands from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === 'content.startPageTranslation') {
+      void startFullPageTranslation();
+    }
+    if (message?.type === 'content.translateSelection') {
+      handleClick();
+    }
+  });
+  // Testing hook: allow the page to dispatch a custom event to start full-page translation
+  window.addEventListener('xt:translate-page', () => {
+    void startFullPageTranslation();
+  });
+};
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
@@ -135,32 +162,10 @@ const handleRuntimeMessage = (
   }
 };
 
-ensureButton().addEventListener('click', handleClick);
-document.addEventListener('mouseup', handleMouseUp);
-document.addEventListener('keyup', (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    hideOverlays();
-  }
-});
-chrome.runtime.onMessage.addListener((message) => {
-  handleRuntimeMessage(message as never);
-});
-
-// Commands from background
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === 'content.startPageTranslation') {
-    void startFullPageTranslation();
-  }
-  if (message?.type === 'content.translateSelection') {
-    handleClick();
-  }
-});
-
-// Testing hook: allow the page to dispatch a custom event to start full-page translation
-// This avoids requiring keyboard shortcuts in automated E2E and is a no-op for normal users.
-window.addEventListener('xt:translate-page', () => {
-  void startFullPageTranslation();
-});
+if (!window.__xtInit) {
+  window.__xtInit = true;
+  initOnce();
+}
 
 const startFullPageTranslation = async () => {
   nodeMap.clear();

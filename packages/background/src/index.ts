@@ -282,6 +282,34 @@ const loadSettings = async () => {
 
 void loadSettings();
 
+// Ensure content script registration via scripting API (to avoid race on first navigation)
+const ensureContentScriptRegistration = async () => {
+  try {
+    const existing = await chrome.scripting.getRegisteredContentScripts?.();
+    const already = existing?.some((s) => s.id === 'xt-auto');
+    if (!already && chrome.scripting.registerContentScripts) {
+      await chrome.scripting.registerContentScripts([
+        {
+          id: 'xt-auto',
+          js: ['content.js'],
+          matches: ['http://*/*', 'https://*/*'],
+          runAt: 'document_idle',
+          allFrames: false,
+          persistAcrossSessions: true,
+          world: 'ISOLATED',
+        },
+      ]);
+      // eslint-disable-next-line no-console
+      console.log('[e2e] registered content script via scripting API');
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[e2e] failed to register content script:', (e as Error)?.message ?? e);
+  }
+};
+
+void ensureContentScriptRegistration();
+
 // Load E2E overrides (written by Puppeteer runner) to propagate stub port
 const loadE2EOverrides = async () => {
   try {
@@ -329,6 +357,7 @@ chrome.runtime.onInstalled.addListener(() => {
   try { chrome.contextMenus.removeAll(); } catch { /* noop */ }
   chrome.contextMenus.create({ id: 'xt-translate-selection', title: 'Translate selection', contexts: ['selection'] });
   chrome.contextMenus.create({ id: 'xt-translate-page', title: 'Translate entire page', contexts: ['page'] });
+  void ensureContentScriptRegistration();
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
