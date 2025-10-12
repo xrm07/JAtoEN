@@ -46,6 +46,8 @@ async function main() {
   });
 
   try {
+    // Ensure the MV3 background service worker is running before navigation
+    await waitForExtensionServiceWorker(browser, 60000);
     const page = await browser.newPage();
     // Surface console/page errors to CI logs
     page.on('console', (msg) => console.log(`[console] ${msg.type()}: ${msg.text()}`));
