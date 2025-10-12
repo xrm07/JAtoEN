@@ -49,14 +49,19 @@ async function main() {
   try {
     // Capture extension service worker console/log output in CI logs
     await captureExtensionServiceWorkerLogs(browser);
-    // Ensure the MV3 background service worker is running before navigation
-    await waitForExtensionServiceWorker(browser, 60000);
     const page = await browser.newPage();
     // Surface console/page errors to CI logs
     page.on('console', (msg) => console.log(`[console] ${msg.type()}: ${msg.text()}`));
     page.on('pageerror', (err) => console.error('[pageerror]', err.message));
     await page.bringToFront();
     await page.goto(`http://localhost:${port}/test`, { waitUntil: 'networkidle0' });
+    // In some Chrome versions, the MV3 service worker may not spin up until
+    // the extension receives an event (e.g., a runtime message). Since our
+    // flow triggers a message after selection, don't hard-block on SW here.
+    // Best-effort: start waiting in the background and log if it never appears.
+    void waitForExtensionServiceWorker(browser, 60000).catch((e) =>
+      console.warn('[e2e] service worker did not appear within timeout:', e?.message || e)
+    );
     await page.waitForSelector('#text', { timeout: 30000 });
     // Wait for content script to inject the (hidden) selection button element
     await page.waitForSelector('[data-xt-id="xt-selection-button"]', { timeout: 30000 });
