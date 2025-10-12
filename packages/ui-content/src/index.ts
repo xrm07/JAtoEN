@@ -1,9 +1,50 @@
-import { Segmenter } from '@ja-to-en/domain';
+import { isValidSelection } from '@ja-to-en/domain';
+// Early boot log (before body)
+// eslint-disable-next-line no-console
+console.log('[xt] cs:init state=', document.readyState);
+declare global { interface Window { __xtInit?: boolean } }
+
+const withBody = (fn: () => void) => {
+  if (document.body) {
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+};
+
+const initOnce = () => {
+  ensureButton().addEventListener('click', handleClick);
+  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener('keyup', (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      hideOverlays();
+    }
+  });
+  chrome.runtime.onMessage.addListener((message) => {
+    handleRuntimeMessage(message as never);
+  });
+  // Wake up the service worker early and establish a channel
+  void chrome.runtime.sendMessage({ type: 'content.ping', href: location.href }).catch(() => undefined);
+  // Commands from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === 'content.startPageTranslation') {
+      void startFullPageTranslation();
+    }
+    if (message?.type === 'content.translateSelection') {
+      handleClick();
+    }
+  });
+  // Testing hook: allow the page to dispatch a custom event to start full-page translation
+  window.addEventListener('xt:translate-page', () => {
+    void startFullPageTranslation();
+  });
+};
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
 
-const segmenter = new Segmenter();
+// use domain-level validation
+
 let currentSelection: Selection | null = null;
 let progressEl: HTMLDivElement | null = null;
 const nodeMap = new Map<string, Text>();
@@ -25,7 +66,7 @@ const ensureButton = (): HTMLButtonElement => {
   button.style.fontSize = '12px';
   button.style.display = 'none';
   button.style.cursor = 'pointer';
-  document.body.appendChild(button);
+  withBody(() => document.body!.appendChild(button));
   return button;
 };
 
@@ -48,7 +89,7 @@ const ensureTooltip = (): HTMLDivElement => {
   tooltip.style.lineHeight = '1.4';
   tooltip.style.display = 'none';
   tooltip.style.zIndex = '2147483647';
-  document.body.appendChild(tooltip);
+  withBody(() => document.body!.appendChild(tooltip));
   return tooltip;
 };
 
@@ -57,7 +98,7 @@ const ensureProgress = (): HTMLDivElement => {
   const el = document.createElement('div');
   el.dataset.xtRole = 'xt-progress';
   el.style.display = 'none';
-  document.body.appendChild(el);
+  withBody(() => document.body!.appendChild(el));
   progressEl = el;
   return el;
 };
@@ -86,7 +127,7 @@ const showTooltip = (text: string, x: number, y: number) => {
 const handleMouseUp = (event: MouseEvent) => {
   currentSelection = document.getSelection();
   const text = currentSelection?.toString().trim();
-  if (text && text.length > 0) {
+  if (text && isValidSelection(text)) {
     showButton(event.clientX + 12, event.clientY + 12);
   } else {
     hideOverlays();
@@ -95,12 +136,7 @@ const handleMouseUp = (event: MouseEvent) => {
 
 const handleClick = () => {
   const text = currentSelection?.toString().trim();
-  if (!text) {
-    return;
-  }
-
-  const segments = segmenter.split(text);
-  if (segments.length === 0) {
+  if (!text || !isValidSelection(text)) {
     return;
   }
 
@@ -114,7 +150,7 @@ const handleClick = () => {
 };
 
 const handleRuntimeMessage = (
-  message: { type: string; id: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
+  message: { type: string; id?: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
 ) => {
   if (message.type === 'translate.progress') {
     const el = ensureProgress();
@@ -137,28 +173,25 @@ const handleRuntimeMessage = (
     }
     if (progressEl) progressEl.style.display = 'none';
   }
+  if (message.type === 'content.pong') {
+    // eslint-disable-next-line no-console
+    console.log('[xt] content.pong received');
+  }
 };
 
-ensureButton().addEventListener('click', handleClick);
-document.addEventListener('mouseup', handleMouseUp);
-document.addEventListener('keyup', (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    hideOverlays();
-  }
-});
-chrome.runtime.onMessage.addListener((message) => {
-  handleRuntimeMessage(message as never);
-});
-
-// Commands from background
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === 'content.startPageTranslation') {
-    void startFullPageTranslation();
-  }
-  if (message?.type === 'content.translateSelection') {
-    handleClick();
-  }
-});
+if (!window.__xtInit) {
+  window.__xtInit = true;
+  withBody(() => {
+    try {
+      initOnce();
+      // eslint-disable-next-line no-console
+      console.log('[xt] content script boot:', location.href);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[xt] init error:', (e as Error)?.message || e);
+    }
+  });
+}
 
 const startFullPageTranslation = async () => {
   nodeMap.clear();

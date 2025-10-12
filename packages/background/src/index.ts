@@ -56,10 +56,16 @@ const runtimeConfig: RuntimeConfig = {
 
 const segmenter = new Segmenter();
 const cache = createCacheRepository();
-const client = new LMStudioClient({
-  defaultModel: runtimeConfig.model,
-  defaultTemperature: runtimeConfig.temperature
-});
+
+let lmBaseUrl: string | undefined;
+const e2eOverridesReady: Promise<void | undefined> = loadE2EOverrides().catch(() => undefined);
+
+const getClient = (): LMStudioClient =>
+  new LMStudioClient({
+    baseUrl: lmBaseUrl,
+    defaultModel: runtimeConfig.model,
+    defaultTemperature: runtimeConfig.temperature,
+  });
 
 const handleMessage = async (
   message: BackgroundMessage,
@@ -163,9 +169,12 @@ const handlePageTranslation = async (
   );
 
   try {
+    // Ensure E2E overrides (if any) are loaded before first request
+    await e2eOverridesReady;
     // Batch to respect token limits; simple fixed size grouping for now
     const batchSize = 20;
     const translatedItems: Array<{ id: string; translated: string }> = [];
+    const client = getClient();
     for (let i = 0; i < request.segments.length; i += batchSize) {
       const slice = request.segments.slice(i, i + batchSize);
       const req = createTranslationRequest(
@@ -217,6 +226,8 @@ const executeTranslation = async (
   sendResponse: (response: MsgTranslationResult | { error: string }) => void
 ) => {
   try {
+    await e2eOverridesReady;
+    const client = getClient();
     const result = await client.translate(request);
     const combinedText = result.items.map((item) => item.translated).join('\n');
     const cacheValue: CacheValue = {
@@ -272,6 +283,97 @@ const loadSettings = async () => {
 
 void loadSettings();
 
+// Ensure content script registration via scripting API (to avoid race on first navigation)
+const ensureContentScriptRegistration = async () => {
+  try {
+    const existing = await chrome.scripting.getRegisteredContentScripts?.();
+    const already = existing?.some((s) => s.id === 'xt-auto');
+    if (!already && chrome.scripting.registerContentScripts) {
+      await chrome.scripting.registerContentScripts([
+        {
+          id: 'xt-auto',
+          js: ['content.js'],
+          matches: ['http://localhost/*'],
+          runAt: 'document_start',
+          allFrames: false,
+          persistAcrossSessions: true,
+          world: 'ISOLATED',
+        },
+      ]);
+      // eslint-disable-next-line no-console
+      console.log('[e2e] registered content script via scripting API');
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[e2e] failed to register content script:', (e as Error)?.message ?? e);
+  }
+};
+
+void ensureContentScriptRegistration();
+
+// As an extra guard in CI, programmatically inject the content script when a
+// top-level navigation to localhost commits. Content script itself guards
+// duplicate initialization.
+chrome.webNavigation.onCommitted.addListener(async (details) => {
+  try {
+    if (details.frameId !== 0) return;
+    const url = new URL(details.url);
+    if (url.hostname !== 'localhost') return;
+    await chrome.scripting.executeScript({
+      target: { tabId: details.tabId, frameIds: [0] },
+      files: ['content.js'],
+      world: 'ISOLATED',
+    });
+    // eslint-disable-next-line no-console
+    console.log('[e2e] injected content.js via webNavigation for', details.url);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[e2e] failed to inject content.js:', (e as Error)?.message || e);
+  }
+});
+
+// Secondary safety net: inject content.js when tab finishes loading a localhost page.
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  try {
+    if (changeInfo.status !== 'complete') return;
+    const urlStr = tab?.url;
+    if (!urlStr) return;
+    const url = new URL(urlStr);
+    if (url.hostname !== 'localhost') return;
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      files: ['content.js'],
+      world: 'ISOLATED',
+    });
+    // eslint-disable-next-line no-console
+    console.log('[e2e] injected content.js via tabs.onUpdated for', urlStr);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[e2e] tabs.onUpdated injection failed:', (e as Error)?.message || e);
+  }
+});
+
+// Load E2E overrides (written by Puppeteer runner) to propagate stub port
+const loadE2EOverrides = async () => {
+  try {
+    const url = chrome.runtime.getURL('e2e-settings.json');
+    const res = await fetch(url);
+    if (res.ok) {
+      const json = (await res.json()) as { baseUrl?: string };
+      if (typeof json.baseUrl === 'string' && json.baseUrl.length > 0) {
+        lmBaseUrl = json.baseUrl;
+        // eslint-disable-next-line no-console
+        console.log('[e2e] LM baseUrl override:', lmBaseUrl);
+      }
+    }
+  } catch {
+    // ignore when not present
+  }
+};
+
+// Trigger the E2E overrides loading early; consumers await e2eOverridesReady
+void e2eOverridesReady;
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes['xt-settings']) {
@@ -299,6 +401,7 @@ chrome.runtime.onInstalled.addListener(() => {
   try { chrome.contextMenus.removeAll(); } catch { /* noop */ }
   chrome.contextMenus.create({ id: 'xt-translate-selection', title: 'Translate selection', contexts: ['selection'] });
   chrome.contextMenus.create({ id: 'xt-translate-page', title: 'Translate entire page', contexts: ['page'] });
+  void ensureContentScriptRegistration();
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -315,6 +418,20 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'stats.get') {
     void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
+    return true;
+  }
+  if (message?.type === 'content.ping') {
+    // eslint-disable-next-line no-console
+    console.log('[e2e] content.ping from', typeof message?.href === 'string' ? message.href : 'unknown');
+    try {
+      if (_sender?.tab?.id) {
+        void chrome.tabs.sendMessage(_sender.tab.id, { type: 'content.pong' });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[e2e] failed to send content.pong:', (e as Error)?.message || e);
+    }
+    sendResponse({ ok: true });
     return true;
   }
   return undefined;

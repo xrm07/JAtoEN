@@ -124,6 +124,12 @@ export const buildTranslationResult = (
   };
 };
 
+export const isValidSelection = (value: string): boolean => {
+  const normalized = value.normalize('NFKC').trim();
+  if (normalized.length === 0) return false;
+  return /[\p{L}\p{N}]/u.test(normalized);
+};
+
 export class Segmenter {
   split(input: string): TextSegment[] {
     const sanitized = normalizeText(input);

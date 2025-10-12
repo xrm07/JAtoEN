@@ -8,7 +8,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain && mv dist/index.global.js dist/content.js",
+    "build": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain && node -e \"require('fs').renameSync('dist/index.global.js','dist/content.js')\"",
     "dev": "tsup src/index.ts --format iife --out-dir dist --sourcemap --no-splitting --global-name ContentMain --watch",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint 'src/**/*.ts'",

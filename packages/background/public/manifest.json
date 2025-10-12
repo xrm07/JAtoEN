@@ -9,7 +9,9 @@
     "storage",
     "scripting",
     "activeTab",
-    "contextMenus"
+    "contextMenus",
+    "webNavigation",
+    "tabs"
   ],
   "host_permissions": [
     "http://localhost:1234/*"
@@ -39,14 +41,15 @@
       "js": [
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
         "overlay.css",
-        "icons/*.svg"
+        "icons/*.svg",
+        "e2e-settings.json"
       ],
       "matches": [
         "<all_urls>"
