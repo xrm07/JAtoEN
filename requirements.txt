@@ -88,6 +88,7 @@
 
 * 設定: `baseUrl` 既定 `http://localhost:1234/v1`、`apiKey` 任意、`model` 必須。
 * リクエスト: *chat.completions* を既定。system に翻訳スタイル指示、user に原文、tools 未使用。
+* セパレータ: セグメント結合/分割には U+241E (␞) を使用し、改行は挟まない。
 
 ## 7. DOM 置換アルゴリズム(ページ全体)
 
@@ -111,7 +112,7 @@
   "name": "EN⇄JA Translator",
   "version": "0.1.0",
   "action": { "default_popup": "popup.html" },
-  "permissions": ["storage","contextMenus"],
+  "permissions": ["storage","contextMenus","tabs"],
   "host_permissions": ["http://localhost:1234/*"],
   "commands": {
     "translate-selection": { "suggested_key": { "default": "Alt+T" } },
