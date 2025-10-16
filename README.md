@@ -19,7 +19,7 @@
 1. `pnpm install`
 2. `pnpm build`
 
-個別パッケージの開発は `pnpm dev --filter ui-popup` や `pnpm dev --filter ui-content` など、requirements のガイドラインに従って進めてください。
+個別パッケージの開発は `pnpm dev --filter ui-popup` や `pnpm dev --filter ui-content` など、requirements のガイドラインに従って進めてください。E2E は `pnpm build` の後、`CHROME_PATH` を指定して `pnpm test:e2e` を実行します（CI では xvfb と Google Chrome を自動セットアップ）。
 
 ## スクリプト
 
@@ -27,7 +27,7 @@
 - `pnpm dev`: 各パッケージの `dev` スクリプトを並列実行（存在する場合）。
 - `pnpm lint` / `pnpm lint:fix`: ESLint。
 - `pnpm format` / `pnpm format:check`: Prettier。
-- `pnpm test`: vitest によるユニットテスト。
+- `pnpm test`: vitest によるユニットテスト（E2Eは除外）。
 - `pnpm test:e2e`: E2E テスト（現状はプレースホルダー）。
 - `pnpm coverage`: ドメイン層・キャッシュ層のカバレッジ実行用フック。
 

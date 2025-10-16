@@ -48,6 +48,11 @@ type RuntimeConfig = {
   temperature: number;
 };
 
+type StoredSettings = Partial<RuntimeConfig> & {
+  baseUrl?: string;
+  apiKey?: string;
+};
+
 const runtimeConfig: RuntimeConfig = {
   model: 'lmstudio/translate-enja',
   maxTokens: 1024,
@@ -56,10 +61,19 @@ const runtimeConfig: RuntimeConfig = {
 
 const segmenter = new Segmenter();
 const cache = createCacheRepository();
-const client = new LMStudioClient({
-  defaultModel: runtimeConfig.model,
-  defaultTemperature: runtimeConfig.temperature
-});
+
+// LM Studio base URL uses the client's default when undefined
+let lmBaseUrl: string | undefined;
+let lmApiKey: string | undefined;
+
+const getClient = (): LMStudioClient =>
+  new LMStudioClient({
+    // When not provided, LMStudioClient falls back to http://localhost:1234/v1
+    baseUrl: lmBaseUrl,
+    apiKey: lmApiKey,
+    defaultModel: runtimeConfig.model,
+    defaultTemperature: runtimeConfig.temperature,
+  });
 
 const handleMessage = async (
   message: BackgroundMessage,
@@ -166,6 +180,7 @@ const handlePageTranslation = async (
     // Batch to respect token limits; simple fixed size grouping for now
     const batchSize = 20;
     const translatedItems: Array<{ id: string; translated: string }> = [];
+    const client = getClient();
     for (let i = 0; i < request.segments.length; i += batchSize) {
       const slice = request.segments.slice(i, i + batchSize);
       const req = createTranslationRequest(
@@ -217,6 +232,7 @@ const executeTranslation = async (
   sendResponse: (response: MsgTranslationResult | { error: string }) => void
 ) => {
   try {
+    const client = getClient();
     const result = await client.translate(request);
     const combinedText = result.items.map((item) => item.translated).join('\n');
     const cacheValue: CacheValue = {
@@ -252,19 +268,29 @@ const serializeError = (error: unknown): string => {
   return 'Unknown error';
 };
 
+// Single runtime.onMessage listener to handle all background messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  void handleMessage(message as BackgroundMessage, sender, sendResponse);
-  return true;
+  if (message?.type === 'stats.get') {
+    void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
+    return true;
+  }
+  if (message && typeof message.type === 'string' && message.type.startsWith('translate.')) {
+    void handleMessage(message as BackgroundMessage, sender, sendResponse as never);
+    return true;
+  }
+  return false;
 });
 
 // Load persisted settings
 const loadSettings = async () => {
   try {
     const data = await chrome.storage.local.get(['xt-settings']);
-    const s = data['xt-settings'] as Partial<RuntimeConfig> | undefined;
+    const s = data['xt-settings'] as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+    lmBaseUrl = typeof s?.baseUrl === 'string' && s.baseUrl.trim() ? s.baseUrl.trim() : undefined;
+    lmApiKey = typeof s?.apiKey === 'string' && s.apiKey.trim() ? s.apiKey.trim() : undefined;
   } catch {
     // ignore
   }
@@ -272,13 +298,20 @@ const loadSettings = async () => {
 
 void loadSettings();
 
+// Content script is declared in the manifest (document_start); no programmatic
+// injection paths are needed in production.
+
+// In production builds, LM base URL is the client default (Options can override in future).
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes['xt-settings']) {
-    const s = changes['xt-settings'].newValue as Partial<RuntimeConfig> | undefined;
+    const s = changes['xt-settings'].newValue as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+    lmBaseUrl = typeof s?.baseUrl === 'string' && s.baseUrl.trim() ? s.baseUrl.trim() : undefined;
+    lmApiKey = typeof s?.apiKey === 'string' && s.apiKey.trim() ? s.apiKey.trim() : undefined;
   }
 });
 
@@ -310,12 +343,4 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     chrome.tabs.sendMessage(tab.id, { type: 'content.startPageTranslation' });
   }
 });
-
-// Stats endpoint for popup
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'stats.get') {
-    void cache.stats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
-    return true;
-  }
-  return undefined;
-});
+// (stats.get handled in unified onMessage above)

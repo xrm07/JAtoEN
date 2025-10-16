@@ -1,0 +1,148 @@
+language: en-US
+
+# CodeRabbit configuration tailored for JAtoEN
+#
+# This configuration focuses on providing high‑quality reviews for GitHub
+# Action workflows and test design within the JAtoEN monorepo.  The
+# repository uses pnpm workspaces, TypeScript and Vitest for unit tests
+# and Puppeteer for end‑to‑end (E2E) tests.  The settings below enable
+# assertive reviews, enable useful static analysis tools, and add
+# path‑specific instructions so reviewers pay attention to the most
+# critical aspects of the project.
+
+reviews:
+  # Use the assertive profile so CodeRabbit provides more detailed
+  # feedback rather than a superficial overview.
+  profile: assertive
+  # Generate a high level summary of the changes in pull requests.
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+  # Path‑specific review instructions.  These guidelines help the AI
+  # reviewer focus on the most important files in the monorepo.
+  path_instructions:
+    # CI/CD workflows
+    - path: "**/.github/workflows/*.yml"
+      instructions: |
+        This repository uses GitHub Actions to run continuous integration (CI) and
+        packaging jobs.  When reviewing workflow files, verify that they follow
+        modern best practices:
+
+        * Use the latest stable versions of official actions.  For example,
+          `actions/setup-node@v5` can automatically cache dependencies based on
+          the package manager【127177336220514†L188-L204】.  Ensure caching is
+          enabled where appropriate to speed up runs, and that sensitive
+          workflows disable caching when elevated privileges are used【127177336220514†L188-L204】.
+        * Install pnpm using `pnpm/action-setup` and configure `actions/setup-node`
+          with `cache: "pnpm"` to cache the pnpm store【943357960601573†L189-L216】.  This
+          dramatically reduces install time and is the recommended pattern from
+          pnpm’s CI documentation.
+        * Split independent tasks such as linting, unit tests, building and
+          packaging into separate jobs that run in parallel.  Use `needs` to
+          sequence jobs only when one depends on the outputs of another.
+        * Consider using a matrix strategy to test against multiple Node versions
+          (e.g. 20 and 22) if compatibility is important.  Use concurrency
+          groups and `cancel-in-progress` to avoid duplicative runs.
+        * Avoid checking secrets into the repository.  All tokens and keys used
+          in workflows should come from encrypted GitHub Action secrets.  Verify
+          that secrets are referenced via `${{ secrets.YOUR_SECRET_NAME }}` and
+          that none are hard coded.
+        * Ensure the extension packaging step produces reproducible artifacts
+          (e.g. extension.zip) and that artifacts are uploaded with
+          `actions/upload-artifact` for downstream jobs.
+
+    # End‑to‑end tests
+    - path: "packages/e2e/src/**"
+      instructions: |
+        The e2e package contains Puppeteer‑based tests.  Reviewers should:
+
+        * Guard against flakiness by avoiding arbitrary sleeps such as
+          `page.waitForTimeout`.  Puppeteer’s event‑driven architecture means
+          explicit waits are rarely necessary; instead use `page.waitForSelector`
+          or `page.waitForFunction` to synchronise interactions【543982455973612†L155-L203】.
+        * Use robust selectors (data attributes or semantic IDs) rather than
+          brittle DOM positions.  Hard‑coded CSS hierarchies tend to break when
+          the UI changes.
+        * Ensure tests handle asynchronous operations properly by awaiting
+          promises and waiting for the page to reach the desired state before
+          interacting with elements.  Avoid reliance on network speeds or fixed
+          timeouts【543982455973612†L155-L203】.
+        * Verify that stub servers and mocks cover both success and error cases.
+          The LM Studio stub in `run.js` currently echoes the input; consider
+          adding tests for unexpected responses or network failures.
+        * Capture screenshots or logs on failure to aid debugging.  E2E tests
+          are harder to diagnose than unit tests; artefacts help identify issues.
+
+    # TypeScript source files across packages
+    - path: "packages/**/*.ts"
+      instructions: |
+        These files implement the browser extension’s core logic.  When
+        reviewing TypeScript modules:
+
+        * Check that business logic (e.g. translation and caching routines)
+          lives in the `domain` package.  UI layers should remain thin and
+          delegate work to shared modules.
+        * Encourage writing comprehensive unit tests using Vitest for each
+          exported function.  Tests should cover normal, edge and error paths and
+          assert both return values and side effects.
+        * Ensure TypeScript types are precise and leverage generics to prevent
+          runtime errors.  Prefer `unknown` over `any` when the type is not
+          known at compile time.
+        * Follow the repository’s ESLint and Prettier rules.  Inconsistent
+          formatting or unused variables should be caught by linting, not left to
+          manual review.
+        * Suggest adding inline comments or JSDoc where code is complex or when
+          the intention is not obvious.  Docstrings make the code easier to
+          understand and help generate documentation.
+
+    # Package manifests
+    - path: "packages/**/package.json"
+      instructions: |
+        When reviewing `package.json` files:
+
+        * Ensure that each script does what its name implies.  For example,
+          `test` should run Vitest (`vitest run --passWithNoTests`) and exit with
+          a non‑zero code on failure.  Encourage adding a `coverage` script that
+          generates coverage reports.
+        * Verify that dependencies are correctly classified: move build tools,
+          testing frameworks and linters into `devDependencies` and runtime
+          libraries into `dependencies`.
+        * Use workspace ranges (`workspace:*`) consistently for internal
+          packages to avoid version drift.
+        * Check that Node and browser polyfills are not unnecessarily added;
+          modern bundlers like Vite and tsup handle them automatically.
+
+  # Enable additional static analysis tools.  These run alongside the
+  # language model to catch common issues (style violations, secret leaks,
+  # markdown formatting).  Keep them enabled unless they conflict with
+  # existing tooling.
+  tools:
+    eslint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: true
+
+code_generation:
+  # Unit test generation settings.  These guidelines help CodeRabbit
+  # generate useful tests when requested.
+  unit_tests:
+    path_instructions:
+      - path: "packages/domain/src/**/*.ts"
+        instructions: |
+          Generate Vitest unit tests for domain modules.  Each public
+          function should have tests covering:
+
+          * Success cases with valid Japanese input and expected English output.
+          * Edge cases such as empty strings, punctuation, multi‑sentence
+            paragraphs and unexpected characters.
+          * Failure modes: simulate API errors, network failures and invalid
+            responses.  Use mocks or stubs rather than real network calls.
+          * Ensure tests are deterministic: avoid reliance on timeouts or
+            nondeterministic ordering.  Use `expect` assertions to check both
+            returned values and side effects (e.g. cache updates).
+          * Follow Vitest best practices: isolate tests, reset state between
+            tests using `beforeEach`/`afterEach`, and structure specs clearly
+            with `describe` and `it` blocks.

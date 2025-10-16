@@ -1,9 +1,55 @@
-import { Segmenter } from '@ja-to-en/domain';
+import { isValidSelection } from '@ja-to-en/domain';
+// Early boot log (before body)
+// eslint-disable-next-line no-console
+console.log('[xt] cs:init state=', document.readyState);
+declare global { interface Window { __xtInit?: boolean } }
+
+/**
+ * Execute callback when document.body is available.
+ * If body exists now, run immediately; otherwise wait for DOMContentLoaded.
+ */
+const withBody = (fn: (body: HTMLElement) => void) => {
+  const run = () => {
+    const body = document.body as HTMLElement | null;
+    if (body) fn(body);
+  };
+  if (document.body) {
+    run();
+  } else {
+    document.addEventListener('DOMContentLoaded', run, { once: true });
+  }
+};
+
+const initOnce = () => {
+  ensureButton().addEventListener('click', handleClick);
+  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener('keyup', (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      hideOverlays();
+    }
+  });
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === 'content.startPageTranslation') {
+      void startFullPageTranslation();
+      return;
+    }
+    if (message?.type === 'content.translateSelection') {
+      handleClick();
+      return;
+    }
+    handleRuntimeMessage(message as never);
+  });
+  // Testing hook: allow the page to dispatch a custom event to start full-page translation
+  window.addEventListener('xt:translate-page', () => {
+    void startFullPageTranslation();
+  });
+};
 
 const BUTTON_ID = 'xt-selection-button';
 const TOOLTIP_ID = 'xt-translation-tooltip';
 
-const segmenter = new Segmenter();
+// use domain-level validation
+
 let currentSelection: Selection | null = null;
 let progressEl: HTMLDivElement | null = null;
 const nodeMap = new Map<string, Text>();
@@ -25,7 +71,7 @@ const ensureButton = (): HTMLButtonElement => {
   button.style.fontSize = '12px';
   button.style.display = 'none';
   button.style.cursor = 'pointer';
-  document.body.appendChild(button);
+  withBody((body) => body.appendChild(button));
   return button;
 };
 
@@ -48,7 +94,7 @@ const ensureTooltip = (): HTMLDivElement => {
   tooltip.style.lineHeight = '1.4';
   tooltip.style.display = 'none';
   tooltip.style.zIndex = '2147483647';
-  document.body.appendChild(tooltip);
+  withBody((body) => body.appendChild(tooltip));
   return tooltip;
 };
 
@@ -57,7 +103,7 @@ const ensureProgress = (): HTMLDivElement => {
   const el = document.createElement('div');
   el.dataset.xtRole = 'xt-progress';
   el.style.display = 'none';
-  document.body.appendChild(el);
+  withBody((body) => body.appendChild(el));
   progressEl = el;
   return el;
 };
@@ -86,7 +132,7 @@ const showTooltip = (text: string, x: number, y: number) => {
 const handleMouseUp = (event: MouseEvent) => {
   currentSelection = document.getSelection();
   const text = currentSelection?.toString().trim();
-  if (text && text.length > 0) {
+  if (text && isValidSelection(text)) {
     showButton(event.clientX + 12, event.clientY + 12);
   } else {
     hideOverlays();
@@ -95,12 +141,7 @@ const handleMouseUp = (event: MouseEvent) => {
 
 const handleClick = () => {
   const text = currentSelection?.toString().trim();
-  if (!text) {
-    return;
-  }
-
-  const segments = segmenter.split(text);
-  if (segments.length === 0) {
+  if (!text || !isValidSelection(text)) {
     return;
   }
 
@@ -113,9 +154,11 @@ const handleClick = () => {
   });
 };
 
-const handleRuntimeMessage = (
-  message: { type: string; id: string; items?: Array<{ translated: string }> ; done?: number; total?: number }
-) => {
+type MsgTranslateProgress = { type: 'translate.progress'; id: string; done: number; total: number };
+type MsgTranslateResult = { type: 'translate.result'; id: string; items: Array<{ id: string; translated: string }> };
+type IncomingMessage = MsgTranslateProgress | MsgTranslateResult | { type: string };
+
+const handleRuntimeMessage = (message: IncomingMessage) => {
   if (message.type === 'translate.progress') {
     const el = ensureProgress();
     el.textContent = `Translating ${message.done}/${message.total}`;
@@ -124,41 +167,35 @@ const handleRuntimeMessage = (
   }
 
   if (message.type === 'translate.result') {
-    if (message.items?.length && currentSelection?.rangeCount) {
+    if (message.items.length && currentSelection?.rangeCount) {
       const range = currentSelection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
       showTooltip(message.items[0]?.translated ?? '', rect.left, rect.top);
     }
 
     // Page translation result: replace mapped nodes
-    for (const item of message.items ?? []) {
+    for (const item of message.items) {
       const node = nodeMap.get(item.id);
       if (node) node.textContent = item.translated;
     }
     if (progressEl) progressEl.style.display = 'none';
   }
+  // no test-only messages
 };
 
-ensureButton().addEventListener('click', handleClick);
-document.addEventListener('mouseup', handleMouseUp);
-document.addEventListener('keyup', (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    hideOverlays();
-  }
-});
-chrome.runtime.onMessage.addListener((message) => {
-  handleRuntimeMessage(message as never);
-});
-
-// Commands from background
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === 'content.startPageTranslation') {
-    void startFullPageTranslation();
-  }
-  if (message?.type === 'content.translateSelection') {
-    handleClick();
-  }
-});
+if (!window.__xtInit) {
+  window.__xtInit = true;
+  withBody(() => {
+    try {
+      initOnce();
+      // eslint-disable-next-line no-console
+      console.log('[xt] content script boot:', location.href);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[xt] init error:', (e as Error)?.message || e);
+    }
+  });
+}
 
 const startFullPageTranslation = async () => {
   nodeMap.clear();
