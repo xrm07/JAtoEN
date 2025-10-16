@@ -81,6 +81,31 @@ export const PopupApp = () => {
     setIsTranslating(true);
     setOutput('');
     const id = `popup-${Date.now()}`;
+    const res = await chrome.runtime.sendMessage({
+      type: 'translate.selection',
+      id,
+      text: input,
+      pair
+    });
+    if (res?.type === 'translate.result') {
+      const translated = res.items?.map((item: { translated: string }) => item.translated).join('\n') ?? '';
+      setOutput(translated);
+      setHistory((prev) => [
+        {
+          id: res.id,
+          input,
+          output: translated,
+          pair: `${pair.src}/${pair.dst}`,
+          createdAt: Date.now()
+        },
+        ...prev
+      ]);
+      setIsTranslating(false);
+      return;
+    }
+    if (res?.error) {
+      setIsTranslating(false);
+      setOutput(`[Error] ${String(res.error)}`);
     try {
       const res = await chrome.runtime.sendMessage({
         type: 'translate.selection',
@@ -199,6 +224,7 @@ export const PopupApp = () => {
           </label>
           <label style={{ fontSize: 12 }}>
             API Key (optional)
+            <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%' }} />
             <input type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%' }} />
           </label>
           <button type="button" onClick={() => chrome.storage.local.set({ 'xt-settings': { model, temperature, maxTokens, baseUrl, apiKey } })}>

@@ -68,8 +68,8 @@
      * Adapter: `StorageLocalRepository`(storage.local/IndexedDB)、`MemoryShard`(session)
   3. **Integration**
 
-     * `LMStudioClient`(OpenAI 互換 /v1/chat/completions ほか、SSE ストリーム対応)
-     * `RetryPolicy`, `RateLimiter`, `CircuitBreaker`
+     * `LMStudioClient`(OpenAI 互換 /v1/chat/completions)
+     * `RetryPolicy`, `RateLimiter`
   4. **UI**
 
      * `PopupPresenter`, `ContentOverlayController`, `FullPageTranslator`
@@ -86,9 +86,9 @@
 
 ## 6. LM Studio 連携
 
-* 設定: `baseUrl` 既定 `http://localhost:1234/v1`、`apiKey` 任意(固定値 "lm-studio" 等)、`model` 必須。
+* 設定: `baseUrl` 既定 `http://localhost:1234/v1`、`apiKey` 任意、`model` 必須。
 * リクエスト: *chat.completions* を既定。system に翻訳スタイル指示、user に原文、tools 未使用。
-* 失敗時: `ECONNREFUSED` → 未起動ダイアログ、再試行誘導。
+* セパレータ: セグメント結合/分割には U+241E (␞) を使用し、改行は挟まない。
 
 ## 7. DOM 置換アルゴリズム(ページ全体)
 
@@ -112,24 +112,15 @@
   "name": "EN⇄JA Translator",
   "version": "0.1.0",
   "action": { "default_popup": "popup.html" },
-  "permissions": [
-    "storage", "scripting", "activeTab", "contextMenus", "offscreen"
-  ],
-  "host_permissions": [
-    "<all_urls>",
-    "http://localhost:1234/*"
-  ],
+  "permissions": ["storage","contextMenus","tabs"],
+  "host_permissions": ["http://localhost:1234/*"],
   "commands": {
     "translate-selection": { "suggested_key": { "default": "Alt+T" } },
     "translate-page": { "suggested_key": { "default": "Alt+Shift+T" } }
   },
   "content_scripts": [
-    { "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle" }
-  ],
-  "web_accessible_resources": [{
-    "resources": ["overlay.css", "icons/*.svg"],
-    "matches": ["<all_urls>"]
-  }]
+    { "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_start" }
+  ]
 }
 ```
 
@@ -145,13 +136,13 @@ async function translateBatch(texts: string[], pair: {src: string; dst: string})
   const body = {
     model: settings.model,
     messages: [
-      {role: 'system', content: `Translate from ${pair.src} to ${pair.dst}. Return only translated text, keep line breaks.`},
-      {role: 'user', content: texts.join('\n\n---\n\n')}
+      { role: 'system', content: 'Translate strictly. Return exactly N segments separated by U+241E (␞). Do not add or remove segments. Preserve punctuation and newlines. No commentary.' },
+      { role: 'user', content: texts.join('␞') }
     ],
     temperature: settings.temp ?? 0.2
   };
   const res = await fetch(`${settings.baseUrl}/chat/completions`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   const j = await res.json();
@@ -161,15 +152,9 @@ async function translateBatch(texts: string[], pair: {src: string; dst: string})
 
 ## 12. テスト戦略
 
-* **単体**: Segmenter、キー生成、LRU、リトライポリシー。Vitest + ts-node。
-* **統合**: LM Studio スタブ(固定応答)を用意し、バッチと順序整合を検証。
-* **E2E**: Puppeteer + Chrome for Testing。拡張をロードし、
-
-  1. ポップアップ入力→翻訳→表示、
-  2. コンテンツ選択→フローティング UI→翻訳、
-  3. 全ページ翻訳→進捗と復元、
-  4. SW 再起動後の再送、
-  5. CORS/ホスト許可、を検証。
+* **単体**: Segmenter、キー生成、LRU、リトライポリシー。Vitest。
+* **統合**: LM Studio スタブ(固定応答)でセパレータ復元の厳密一致を検証。
+* **E2E**: Puppeteer + Chrome for Testing。
 
 ## 13. セキュリティとプライバシー
 
@@ -180,7 +165,7 @@ async function translateBatch(texts: string[], pair: {src: string; dst: string})
 
 * **CORS/ホスト許可**: MV3 では content からのクロスオリジンは不可。SW で実行し、`host_permissions` に localhost を付与。
 * **SW ライフサイクル**: アイドル終了に備え、要求は冪等に。ジョブキューと再開処理を実装。
-* **DOM 破綻**: 置換は Text ノード限定。属性値やスクリプトは変更しない。プレーンな置換関数の E2E を維持。
+* **DOM 破綻**: 置換は Text ノード限定。属性値やスクリプトは変更しない。
 * **容量制限**: 大量キャッシュ時は `unlimitedStorage` を利用可。設定で上限を可変化。
 
 ## 15. マイルストーン
@@ -194,156 +179,3 @@ async function translateBatch(texts: string[], pair: {src: string; dst: string})
 
 * モデル既定値、訳質ポリシー、UI 文言、許可ドメイン初期値を決定。
 * LM Studio の `baseUrl`, `model` を Options に保存。セーフガードを入れる。
-
-## 修正ポイントと確定設計 v0.2
-
-### A. 設計の確定方針
-
-1. **責務分離の徹底**: SW=オーケストレーション/LM Studio通信/キャッシュ。Content=DOM検出と置換のみ。Popup=操作と設定。Offscreenは既定OFF（必要時のみ追加）。
-2. **LM Studio 呼び出し**: 既定は *non-stream*。長文は**バッチ**送信（推定トークンで 2k–3k 未満/バッチ）。順序復元はセパレータで保証。失敗は分類（`ECONNREFUSED`/`ETIMEOUT`/`4xx`/`5xx`）。
-3. **セパレータ規約**: `"
-   ␞
-   "` をレコード区切りとして使用。モデル出力の衝突確率を最小化。
-4. **正規化規約**: 連続空白は 1 個へ圧縮。改行は保持。前後空白は`trim()`。HTML エンティティは **非変換**。
-5. **セグメンテーション**: JA/EN兼用の単純規則（`[。.!?]` + 直後空白）で文分割→最大文字長で再結合。`TextSegment{id, text, path}` に DOM パスを保持。
-6. **キャッシュ**: IndexedDB を採用。キー=`sha256(langPair + normalized_text)`、値=翻訳結果+`{model,temp,ts,lastAccess,hits,bytes}`。**LRU+TTL(30日)**。容量**既定50MB**、上限到達時は LRU から削除。起動時に掃除。
-7. **DOM置換**: `TreeWalker(SHOW_TEXT)`。除外=`script,style,noscript,textarea,input,select,code,pre,[contenteditable],svg`。原文は `data-xt-orig` 退避 + `WeakMap(node→orig)`。置換は `node.textContent=` のみ。
-8. **動的追随**: `MutationObserver({subtree:true,childList:true,characterData:true})`。`data-xt-marked` を持つノードは**再翻訳しない**。
-9. **権限最小化**: 既定=`storage,scripting,activeTab,contextMenus` のみ。`offscreen` は**未同梱**。`host_permissions=["http://localhost:1234/*"]`。
-10. **UI確定**: フローティングボタンは選択矩形の右下に配置。ESCで閉じる。ポップアップに「ページ全体を翻訳」「原文⇄訳文トグル」「キャッシュ消去」。
-11. **パフォーマンス目標**: 選択翻訳P95 < 2.0s、キャッシュヒット < 400ms、ページ翻訳は 10k 文字で < 8s（ローカルCPU前提）。同時実行は**タブあたり2**。
-12. **テレメトリ**: ローカル統計のみ（成功/失敗/レイテンシ）。外送無し。
-
-### B. ディレクトリ構成（pnpm ワークスペース）
-
-```
-packages/
-  domain/                 # DDD: Entity/VO/UseCase
-  infra-lmstudio/         # LMStudioClient + リトライ/レート制御
-  infra-cache/            # IndexedDB(LRU/TTL) + storage.localブリッジ
-  background/             # SW本体（メッセージハンドラ、ジョブ管理）
-  ui-content/             # content script（選択検知/置換/overlay）
-  ui-popup/               # popup UI（設定/履歴/実行）
-  e2e/                    # Puppeteer + fixtures + stub server
-```
-
-### C. メッセージ契約（厳密化）
-
-```ts
-// 共通
-type LangPair = { src: 'en'|'ja'; dst: 'en'|'ja' };
-
-// content → SW
-type MsgTranslateSelection = {
-  type: 'translate.selection'; id: string; text: string; pair: LangPair;
-};
-
-type MsgTranslatePage = {
-  type: 'translate.page'; id: string; segments: {id:string,text:string,path:string}[]; pair: LangPair;
-};
-
-// SW → content
-type MsgTranslationResult = {
-  type: 'translate.result'; id: string; items: {id:string, translated:string}[];
-};
-
-type MsgProgress = {
-  type: 'translate.progress'; id: string; done: number; total: number;
-};
-```
-
-### D. LM Studio クライアント（確定仕様）
-
-* エンドポイント: `${baseUrl}/chat/completions`（既定 `http://localhost:1234/v1`）
-* リクエスト:
-
-```ts
-{
-  model,
-  temperature: number, // 既定0.2
-  messages: [
-    { role: 'system', content: 'Translate strictly. Preserve punctuation and newlines. No extra commentary.' },
-    { role: 'user', content: segments.map(s=>s.text).join('
-␞
-') }
-  ]
-}
-```
-
-* レスポンス: 1 テキストを `"
-  ␞
-  "` で分割して対応付け。エラー時は分類し、`Retry-After` を尊重。
-
-### E. キャッシュ仕様（詳細）
-
-* DB名: `xt-cache`, Store: `items(key, translated, meta, lastAccess)`
-* API: `get(key)`, `set(key,value,bytes)`, `evictLRUUntil(bytes<=limit)`, `stats()`
-* 正規化: `normalize(text)` をすべての入口で適用。
-* 指標: ヒット率、平均レイテンシ、サイズ。Popupで表示。
-
-### F. 全ページ翻訳の置換ルール
-
-1. 置換は Text ノードのみ。
-2. ノード長>0 のみ対象。1 文字語（記号単体など）はスキップ可。
-3. 属性や`innerHTML`は変更しない。
-4. 復元は `data-xt-orig` が存在すればそれを優先。
-
-### G. エラーハンドリング行動表
-
-| 事象                 | UI                | 再試行              | ログ                |
-| ------------------ | ----------------- | ---------------- | ----------------- |
-| LM Studio 未起動/接続拒否 | ダイアログで起動案内        | 5秒/10秒で2回        | `net:connrefused` |
-| 429/Rate 限界        | 進捗に警告             | `Retry-After` 準拠 | `http:429`        |
-| 5xx                | バックオフ 500ms→1s→2s | 最大2回             | `http:5xx`        |
-| JSON 解析失敗          | 失敗表示              | なし               | `parse:error`     |
-
-### H. マニフェスト（最小化・更新）
-
-```json
-{
-  "manifest_version": 3,
-  "name": "EN⇄JA Translator",
-  "version": "0.2.0",
-  "action": { "default_popup": "popup.html" },
-  "permissions": ["storage","scripting","activeTab","contextMenus"],
-  "host_permissions": ["http://localhost:1234/*"],
-  "background": { "service_worker": "background.js", "type": "module" },
-  "commands": {
-    "translate-selection": { "suggested_key": { "default": "Alt+T" } },
-    "translate-page": { "suggested_key": { "default": "Alt+Shift+T" } }
-  },
-  "content_scripts": [
-    { "matches": ["http://*/*","https://*/*"], "js": ["content.js"], "run_at": "document_idle" }
-  ],
-  "web_accessible_resources": [{
-    "resources": ["overlay.css","icons/*.svg"],
-    "matches": ["<all_urls>"]
-  }]
-}
-```
-
-### I. テスト方針（確定）
-
-* 単体: Segmenter、normalize、LRU、キー生成（SHA-256）、バッチ分割。
-* 統合: LM Studio スタブでセパレータ復元の厳密一致を確認。
-* E2E: Puppeteer で拡張を読み込み、
-
-  1. ポップアップ翻訳、
-  2. 選択→オーバーレイ、
-  3. 全ページ翻訳→進捗/復元、
-  4. SW 再起動後の再送、
-  5. 権限/ホスト許可の検証。
-
-### J. パフォーマンス計測
-
-* `performance.now()` で各ステップを計測。Popupに統計を表示。
-* 重要指標: P50/P95 レイテンシ、ヒット率、平均バイト/結果。
-
-### K. 追加 TODO（実装順）
-
-1. `infra-cache` の IndexedDB 実装（LRU/TTL）。
-2. `infra-lmstudio` の API クライアント + 失敗分類。
-3. `background` のジョブ分割とメッセージハンドラ。
-4. `ui-content` の TreeWalker + 置換 + Observer。
-5. `ui-popup` の設定・実行 UI と統計表示。
-6. E2E 初期シナリオ。
