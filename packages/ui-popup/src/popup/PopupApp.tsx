@@ -77,12 +77,32 @@ export const PopupApp = () => {
     setIsTranslating(true);
     setOutput('');
     const id = `popup-${Date.now()}`;
-    await chrome.runtime.sendMessage({
+    const res = await chrome.runtime.sendMessage({
       type: 'translate.selection',
       id,
       text: input,
       pair
     });
+    if (res?.type === 'translate.result') {
+      const translated = res.items?.map((item: { translated: string }) => item.translated).join('\n') ?? '';
+      setOutput(translated);
+      setHistory((prev) => [
+        {
+          id: res.id,
+          input,
+          output: translated,
+          pair: `${pair.src}/${pair.dst}`,
+          createdAt: Date.now()
+        },
+        ...prev
+      ]);
+      setIsTranslating(false);
+      return;
+    }
+    if (res?.error) {
+      setIsTranslating(false);
+      setOutput(`[Error] ${String(res.error)}`);
+    }
   };
 
   const handleSwap = () => {
