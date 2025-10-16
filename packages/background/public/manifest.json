@@ -7,10 +7,7 @@
   },
   "permissions": [
     "storage",
-    "scripting",
-    "activeTab",
     "contextMenus",
-    "webNavigation",
     "tabs"
   ],
   "host_permissions": [
@@ -42,17 +39,6 @@
         "content.js"
       ],
       "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "overlay.css",
-        "icons/*.svg"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
     }
   ]
 }

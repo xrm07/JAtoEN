@@ -48,6 +48,11 @@ type RuntimeConfig = {
   temperature: number;
 };
 
+type StoredSettings = Partial<RuntimeConfig> & {
+  baseUrl?: string;
+  apiKey?: string;
+};
+
 const runtimeConfig: RuntimeConfig = {
   model: 'lmstudio/translate-enja',
   maxTokens: 1024,
@@ -59,11 +64,13 @@ const cache = createCacheRepository();
 
 // LM Studio base URL uses the client's default when undefined
 let lmBaseUrl: string | undefined;
+let lmApiKey: string | undefined;
 
 const getClient = (): LMStudioClient =>
   new LMStudioClient({
     // When not provided, LMStudioClient falls back to http://localhost:1234/v1
     baseUrl: lmBaseUrl,
+    apiKey: lmApiKey,
     defaultModel: runtimeConfig.model,
     defaultTemperature: runtimeConfig.temperature,
   });
@@ -278,10 +285,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 const loadSettings = async () => {
   try {
     const data = await chrome.storage.local.get(['xt-settings']);
-    const s = data['xt-settings'] as Partial<RuntimeConfig> | undefined;
+    const s = data['xt-settings'] as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+    lmBaseUrl = typeof s?.baseUrl === 'string' && s.baseUrl.trim() ? s.baseUrl.trim() : undefined;
+    lmApiKey = typeof s?.apiKey === 'string' && s.apiKey.trim() ? s.apiKey.trim() : undefined;
   } catch {
     // ignore
   }
@@ -297,10 +306,12 @@ void loadSettings();
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes['xt-settings']) {
-    const s = changes['xt-settings'].newValue as Partial<RuntimeConfig> | undefined;
+    const s = changes['xt-settings'].newValue as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+    lmBaseUrl = typeof s?.baseUrl === 'string' && s.baseUrl.trim() ? s.baseUrl.trim() : undefined;
+    lmApiKey = typeof s?.apiKey === 'string' && s.apiKey.trim() ? s.apiKey.trim() : undefined;
   }
 });
 

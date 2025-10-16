@@ -8,7 +8,6 @@ const outDir = join(pkgRoot, 'dist');
 const manifestSrc = join(pkgRoot, 'public', 'manifest.json');
 const backgroundJs = join(pkgRoot, 'dist', 'background.js');
 const contentJs = join(pkgRoot, '..', 'ui-content', 'dist', 'content.js');
-const overlayCss = join(pkgRoot, '..', 'ui-content', 'src', 'overlay.css');
 const popupDist = join(pkgRoot, '..', 'ui-popup', 'dist');
 
 if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
@@ -29,10 +28,7 @@ if (!existsSync(contentJs)) {
 }
 cpSync(contentJs, join(outDir, 'content.js'));
 
-// Copy overlay.css (static)
-if (existsSync(overlayCss)) {
-  cpSync(overlayCss, join(outDir, 'overlay.css'));
-}
+// Overlay CSS is currently unused; skip copying for a minimal bundle.
 
 // Copy popup (vite build) as popup.html + assets/
 if (existsSync(popupDist)) {

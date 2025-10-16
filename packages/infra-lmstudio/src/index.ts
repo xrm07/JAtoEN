@@ -57,7 +57,7 @@ export class LMStudioClientError extends Error {
 
 const DEFAULT_BASE_URL = 'http://localhost:1234/v1';
 const SYSTEM_PROMPT =
-  'Translate strictly. Preserve punctuation and newlines. No extra commentary.';
+  'Translate strictly. Return exactly N segments separated by U+241E (␞). Do not add or remove segments. Preserve punctuation and newlines. No commentary.';
 
 export class LMStudioClient {
   private readonly baseUrl: string;

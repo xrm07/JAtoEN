@@ -20,6 +20,8 @@ export const PopupApp = () => {
   const [temperature, setTemperature] = useState(0.2);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [stats, setStats] = useState<{ entries: number; estimatedBytes: number; hits: number; misses: number } | null>(null);
+  const [baseUrl, setBaseUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
 
   useEffect(() => {
     const listener = (message: { type: string; id: string; items?: Array<{ translated: string }> }) => {
@@ -55,6 +57,8 @@ export const PopupApp = () => {
       setModel(s.model ?? model);
       setTemperature(Number(s.temperature ?? temperature));
       setMaxTokens(Number(s.maxTokens ?? maxTokens));
+      setBaseUrl(typeof s.baseUrl === 'string' ? s.baseUrl : '');
+      setApiKey(typeof s.apiKey === 'string' ? s.apiKey : '');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,12 +81,38 @@ export const PopupApp = () => {
     setIsTranslating(true);
     setOutput('');
     const id = `popup-${Date.now()}`;
-    await chrome.runtime.sendMessage({
-      type: 'translate.selection',
-      id,
-      text: input,
-      pair
-    });
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: 'translate.selection',
+        id,
+        text: input,
+        pair
+      });
+      if (res?.type === 'translate.result') {
+        const translated = res.items?.map((item: { translated: string }) => item.translated).join('\n') ?? '';
+        setOutput(translated);
+        setHistory((prev) => [
+          {
+            id: res.id,
+            input,
+            output: translated,
+            pair: `${pair.src}/${pair.dst}`,
+            createdAt: Date.now()
+          },
+          ...prev
+        ]);
+        return;
+      }
+      if (res?.error) {
+        setOutput(`[Error] ${String(res.error)}`);
+        return;
+      }
+      setOutput('[Error] Unexpected response from background script');
+    } catch (error) {
+      setOutput(`[Error] ${error instanceof Error ? error.message : 'Failed to send message'}`);
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   const handleSwap = () => {
@@ -163,7 +193,15 @@ export const PopupApp = () => {
             <input type="number" value={maxTokens}
               onChange={(e) => setMaxTokens(Number(e.target.value))} style={{ width: '100%' }} />
           </label>
-          <button type="button" onClick={() => chrome.storage.local.set({ 'xt-settings': { model, temperature, maxTokens } })}>
+          <label style={{ fontSize: 12 }}>
+            LM Studio Base URL
+            <input placeholder="http://localhost:1234/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <label style={{ fontSize: 12 }}>
+            API Key (optional)
+            <input type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%' }} />
+          </label>
+          <button type="button" onClick={() => chrome.storage.local.set({ 'xt-settings': { model, temperature, maxTokens, baseUrl, apiKey } })}>
             保存
           </button>
         </div>
