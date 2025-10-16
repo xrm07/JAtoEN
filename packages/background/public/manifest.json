@@ -7,9 +7,8 @@
   },
   "permissions": [
     "storage",
-    "scripting",
-    "activeTab",
-    "contextMenus"
+    "contextMenus",
+    "tabs"
   ],
   "host_permissions": [
     "http://localhost:1234/*"
@@ -39,18 +38,7 @@
       "js": [
         "content.js"
       ],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "overlay.css",
-        "icons/*.svg"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
+      "run_at": "document_start"
     }
   ]
 }

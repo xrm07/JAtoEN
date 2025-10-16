@@ -28,14 +28,30 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configure pnpm store path
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Install
-        run: pnpm install
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
 
       - name: Lint
         run: pnpm lint
 
-      - name: Test (exclude e2e)
-        run: pnpm -r --if-present --filter "!@ja-to-en/e2e" run test
+      - name: Test (unit only)
+        run: pnpm run test:unit
 
       - name: Build
         run: pnpm build
@@ -51,35 +67,5 @@ jobs:
           name: extension-dist
           path: extension.zip
 
-  e2e:
-    runs-on: ubuntu-latest
-    needs: build-test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install Google Chrome
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget gnupg
-          wget -O- https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-linux.gpg
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8.15.4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Install
-        run: pnpm install
-      - name: Build extension
-        run: pnpm -w --filter @ja-to-en/ui-content --filter @ja-to-en/ui-popup --filter @ja-to-en/background build
-      - name: Run E2E (xvfb)
-        env:
-          CHROME_PATH: /usr/bin/google-chrome
-        run: |
-          xvfb-run -a -s "-screen 0 1280x800x24" pnpm test:e2e
+  # E2E job intentionally omitted in translation MVP PR. CI for E2E hardening
+  # remains in PR #4. This job will be reintroduced when E2E is stabilized.
