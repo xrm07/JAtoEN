@@ -48,6 +48,11 @@ type RuntimeConfig = {
   temperature: number;
 };
 
+type StoredSettings = Partial<RuntimeConfig> & {
+  baseUrl?: string;
+  apiKey?: string;
+};
+
 const runtimeConfig: RuntimeConfig = {
   model: 'lmstudio/translate-enja',
   maxTokens: 1024,
@@ -281,6 +286,7 @@ const loadSettings = async () => {
   try {
     const data = await chrome.storage.local.get(['xt-settings']);
     const s = data['xt-settings'] as (Partial<RuntimeConfig> & { baseUrl?: string; apiKey?: string }) | undefined;
+    const s = data['xt-settings'] as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
@@ -302,6 +308,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes['xt-settings']) {
     const s = changes['xt-settings'].newValue as (Partial<RuntimeConfig> & { baseUrl?: string; apiKey?: string }) | undefined;
+    const s = changes['xt-settings'].newValue as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
