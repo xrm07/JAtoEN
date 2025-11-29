@@ -46,33 +46,44 @@ let hitPaths: string[] = [];
         let body = Buffer.alloc(0);
         req.on('data', (c) => (body = Buffer.concat([body, c])));
         req.on('end', async () => {
-          const incoming = req.url || '';
-          hitPaths.push(incoming);
-          hitPaths.push(target.pathname);
-          const headers: Record<string, string> = {};
-          for (const [key, value] of Object.entries(req.headers)) {
-            if (typeof value === 'string' && key.toLowerCase() !== 'host') {
-              headers[key] = value;
+          try {
+            const incoming = req.url || '';
+            hitPaths.push(incoming);
+            hitPaths.push(target.pathname);
+            const headers: Record<string, string> = {};
+            for (const [key, value] of Object.entries(req.headers)) {
+              if (typeof value === 'string' && key.toLowerCase() !== 'host') {
+                headers[key] = value;
+              }
+            }
+            if (body.length && !headers['content-type']) {
+              headers['content-type'] = 'application/json';
+            }
+            const resp = await fetch(target, {
+              method: req.method,
+              headers,
+              body: body.length ? body : undefined,
+            } as any);
+            const text = await resp.text();
+            if (!res.headersSent) {
+              res.statusCode = resp.status;
+              resp.headers.forEach((value, key) => {
+                res.setHeader(key, value);
+              });
+              res.end(text);
+            }
+          } catch (e) {
+            if (!res.headersSent) {
+              res.statusCode = 500;
+              res.end(String(e));
             }
           }
-          if (body.length && !headers['content-type']) {
-            headers['content-type'] = 'application/json';
-          }
-          const resp = await fetch(target, {
-            method: req.method,
-            headers,
-            body: body.length ? body : undefined,
-          } as any);
-          const text = await resp.text();
-          res.statusCode = resp.status;
-          resp.headers.forEach((value, key) => {
-            res.setHeader(key, value);
-          });
-          res.end(text);
         });
       } catch (e) {
-        res.statusCode = 500;
-        res.end(String(e));
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.end(String(e));
+        }
       }
     });
     await new Promise<void>((resolve) => forwardServer!.listen(0, resolve));
@@ -176,12 +187,23 @@ let hitPaths: string[] = [];
 
     // Reload models and select model if dropdown exists
     const reloadBtn = await popup.$('[data-xt-role="settings-reload-models"]');
-    await reloadBtn?.click();
+    if (reloadBtn) {
+      await reloadBtn.click();
+      // Wait for models to load
+      await popup.waitForFunction(
+        () => {
+          const select = document.querySelector('[data-xt-role="settings-model-select"]') as HTMLSelectElement | null;
+          return select && select.options.length > 0;
+        },
+        { timeout: 10000 }
+      );
+    }
     const hasSelect = await popup.$('[data-xt-role="settings-model-select"]');
     if (hasSelect) {
       try {
         await popup.select('[data-xt-role="settings-model-select"]', LM_MODEL);
       } catch {
+        console.warn(`Model ${LM_MODEL} not found, selecting first available`);
         const first = await popup.$eval('[data-xt-role="settings-model-select"]', (el) => {
           const s = el as HTMLSelectElement; return s.options[0]?.value || '';
         });
