@@ -14,34 +14,46 @@ const startTestPageServer = async (port = 0): Promise<http.Server> => {
   const testPagesDir = path.resolve(__dirname, '../testpages');
   const contentDistDir = path.resolve(__dirname, '../../ui-content/dist');
 
-  const server = http.createServer((req, res) => {
-    const url = req.url || '/';
+  const server = http.createServer(async (req, res) => {
+    try {
+      const requestedUrl = req.url || '/';
+      const url = new URL(requestedUrl, 'http://localhost');
+      const pathname = url.pathname || '/';
 
-    // Serve content.js from ui-content/dist
-    if (url.includes('/packages/ui-content/dist/content.js')) {
-      const filePath = path.join(contentDistDir, 'content.js');
-      if (fs.existsSync(filePath)) {
-        res.setHeader('Content-Type', 'application/javascript');
-        res.end(fs.readFileSync(filePath));
+      // Serve content.js from ui-content/dist
+      if (pathname === '/packages/ui-content/dist/content.js') {
+        const filePath = path.join(contentDistDir, 'content.js');
+        try {
+          const content = await fs.promises.readFile(filePath);
+          res.setHeader('Content-Type', 'application/javascript');
+          res.end(content);
+          return;
+        } catch {
+          res.statusCode = 404;
+          res.end('Not found');
+          return;
+        }
+      }
+
+      // Serve test pages
+      const filePath = path.join(testPagesDir, pathname === '/' ? 'fullpage.html' : pathname);
+      try {
+        const content = await fs.promises.readFile(filePath);
+        const ext = path.extname(filePath);
+        const contentType =
+          ext === '.html' ? 'text/html' : ext === '.js' ? 'application/javascript' : 'text/plain';
+        res.setHeader('Content-Type', contentType);
+        res.end(content);
+        return;
+      } catch {
+        res.statusCode = 404;
+        res.end('Not found');
         return;
       }
-      res.statusCode = 404;
-      res.end('Not found');
-      return;
+    } catch {
+      res.statusCode = 500;
+      res.end('Server error');
     }
-
-    // Serve test pages
-    const filePath = path.join(testPagesDir, url === '/' ? 'fullpage.html' : url);
-    if (fs.existsSync(filePath)) {
-      const ext = path.extname(filePath);
-      const contentType = ext === '.html' ? 'text/html' : ext === '.js' ? 'application/javascript' : 'text/plain';
-      res.setHeader('Content-Type', contentType);
-      res.end(fs.readFileSync(filePath));
-      return;
-    }
-
-    res.statusCode = 404;
-    res.end('Not found');
   });
 
   await new Promise<void>((resolve) => server.listen(port, resolve));
@@ -198,9 +210,11 @@ describe('Full Page Translation E2E', () => {
       { timeout: 10_000 }
     );
 
-    const progressDisplay = await page.$eval('[data-xt-role="xt-progress"]', (el) => {
-      return (el as HTMLElement).style.display;
-    }).catch(() => 'not-found');
+    const progressHandle = await page.$('[data-xt-role="xt-progress"]');
+    let progressDisplay: string | 'not-found' = 'not-found';
+    if (progressHandle) {
+      progressDisplay = await progressHandle.evaluate((el) => (el as HTMLElement).style.display);
+    }
 
     // Progress should be hidden after completion
     expect(progressDisplay === 'none' || progressDisplay === 'not-found').toBe(true);
@@ -211,6 +225,7 @@ describe('Full Page Translation E2E', () => {
     await page.goto(`http://localhost:${serverPort}/fullpage.html`, { waitUntil: 'domcontentloaded' });
 
     // When: Click the start button
+    await page.waitForSelector('#start', { visible: true });
     await page.click('#start');
 
     // Then: Translation should complete

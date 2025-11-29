@@ -1,5 +1,10 @@
 /**
- * Handler for selection translation messages
+ * Handler for selection translation messages.
+ *
+ * Receives a translate.selection message from content scripts or the popup,
+ * delegates to TranslationService, and forwards the result back via sendResponse.
+ * When a sender tab is available, the result is also broadcast to that tab so
+ * the content script can update its overlays.
  */
 import type { TranslationService } from '../services/translation-service';
 import type { MsgTranslateSelection, MsgTranslationResult } from '../types';

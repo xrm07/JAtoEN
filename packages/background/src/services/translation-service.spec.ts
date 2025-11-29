@@ -188,6 +188,33 @@ describe('TranslationService', () => {
       expect(result.items).toHaveLength(1);
     });
 
+    it('TS-N-03: キャッシュヒット時はLM Studioを呼び出さない', async () => {
+      // Given: サービスと同じテキスト・言語ペア
+      const service = new TranslationService({
+        model: 'test',
+        maxTokens: 512,
+        temperature: 0.2
+      });
+
+      // 1回目の翻訳でキャッシュに保存される
+      await service.translateSelection('req-1', 'Hello', {
+        src: 'en',
+        dst: 'ja'
+      });
+      const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+      const firstCallCount = fetchMock.mock.calls.length;
+
+      // When: 同じテキスト・言語ペアで再度翻訳
+      const result = await service.translateSelection('req-2', 'Hello', {
+        src: 'en',
+        dst: 'ja'
+      });
+
+      // Then: 結果は返され、fetch の呼び出し回数は増えない（キャッシュヒット）
+      expect(result.items.length).toBeGreaterThan(0);
+      expect(fetchMock.mock.calls.length).toBe(firstCallCount);
+    });
+
     it('TS-A-04: LM Studio接続エラー時はエラーをthrowする', async () => {
       // Given: ネットワークエラーが発生するモック
       global.fetch = vi.fn(async () => {

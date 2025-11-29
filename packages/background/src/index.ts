@@ -37,19 +37,37 @@ const handleMessage = async (
 
   if (message.type === 'translate.page') {
     await handlePageTranslation(message, sender, sendResponse, translationService);
+    return;
   }
+
+  // Fallback for unexpected message types
+  sendResponse({ error: 'Unrecognized message type' });
 };
 
 // Single runtime.onMessage listener to handle all background messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'stats.get') {
-    void translationService.getStats().then((s) => sendResponse({ type: 'stats.result', stats: s }));
+    void translationService
+      .getStats()
+      .then((stats) => {
+        sendResponse({ type: 'stats.result', stats });
+      })
+      .catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error('[xt][stats] getStats failed', error);
+        sendResponse({
+          type: 'stats.error',
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
     return true;
   }
+
   if (message && typeof message.type === 'string' && message.type.startsWith('translate.')) {
-    void handleMessage(message as BackgroundMessage, sender, sendResponse as never);
+    void handleMessage(message as BackgroundMessage, sender, sendResponse);
     return true;
   }
+
   return false;
 });
 

@@ -235,15 +235,7 @@ export class LMStudioClient {
   }
 
   private buildHeaders(): HeadersInit {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    };
-
-    if (this.apiKey) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
-    }
-
-    return headers;
+    return buildHeadersForApiKey(this.apiKey);
   }
 }
 
@@ -264,7 +256,7 @@ type ModelsResponse = {
   data?: Array<{ id?: string }>;
 };
 
-const buildHeaders = (apiKey?: string): HeadersInit => {
+const buildHeadersForApiKey = (apiKey?: string): HeadersInit => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
   return headers;
@@ -283,7 +275,7 @@ export const listModels = async (options?: {
   try {
     response = await fetch(new URL('models', baseUrl), {
       method: 'GET',
-      headers: buildHeaders(options?.apiKey)
+      headers: buildHeadersForApiKey(options?.apiKey)
     });
   } catch (error) {
     throw new LMStudioClientError(
@@ -324,6 +316,13 @@ export const listModels = async (options?: {
 
 const ensureTrailingSlash = (value: string): string => (value.endsWith('/') ? value : `${value}/`);
 
+/**
+ * Build the system prompt for LM Studio, using U+241E (␞) as a segment delimiter.
+ *
+ * U+241E is a rarely used visible separator chosen to avoid collisions with normal text.
+ * Downstream code relies on this exact character to split and join translated segments,
+ * so it must not be changed without updating the corresponding split/join logic.
+ */
 const buildSystemPrompt = (request: TranslationRequest): string => {
   const n = request.segments.length;
   const src = request.langPair.src;
