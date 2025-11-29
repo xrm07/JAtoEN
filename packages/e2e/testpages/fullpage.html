@@ -45,6 +45,13 @@
   <div class="box" id="box1">最初の段落です。テスト用の日本語テキスト。</div>
   <div class="box" id="box2">二番目の段落です。もう少し長いテキストで置換を確認します。</div>
   <div class="box" id="box3">三番目の段落です。短文。</div>
+  <!-- 境界値テスト用 -->
+  <div class="box" id="box-single-char">あ</div>
+  <div class="box" id="box-empty"></div>
+  <div class="box" id="box-whitespace">   </div>
+  <div class="box" id="box-long">これは非常に長いテキストです。複数の文を含んでいます。翻訳エンジンがどのように処理するかを確認するために、さらに多くの文を追加します。境界値テストの一環として、長いテキストブロックの翻訳が正しく行われるかを検証します。</div>
+  <div class="box" id="box-special">Hello! 日本語と English が混在。数字123も含む。</div>
+  <div class="box" id="box-punctuation">。。。！？！？</div>
   <button id="start">ページ翻訳を開始</button>
   <script>
     document.getElementById('start').addEventListener('click', () => {

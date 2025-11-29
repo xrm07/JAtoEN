@@ -26,15 +26,6 @@ type ChatCompletionPayload = {
   }>;
 };
 
-type ChatCompletionResponse = {
-  choices: Array<{
-    message?: {
-      role: string;
-      content?: string;
-    };
-  }>;
-};
-
 type ResponsesApiMessageContent =
   | { type: 'output_text'; text: string }
   | { type: 'input_text'; text: string }
@@ -360,7 +351,7 @@ const extractTextFromResponse = (res: ResponsesApiResponse): string | undefined 
   const outItems = res?.response?.output;
   if (Array.isArray(outItems) && outItems.length > 0) {
     const texts = outItems
-      .map((item) => (item as any)?.text)
+      .map((item) => ('text' in item ? item.text : undefined))
       .filter((t): t is string => typeof t === 'string');
     if (texts.length > 0) return texts.join('');
   }

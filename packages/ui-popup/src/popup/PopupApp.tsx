@@ -27,6 +27,7 @@ export const PopupApp = () => {
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [isPageTranslating, setIsPageTranslating] = useState(false);
 
   useEffect(() => {
     const listener = (message: { type: string; id: string; items?: Array<{ translated: string }> }) => {
@@ -126,31 +127,6 @@ export const PopupApp = () => {
     setIsTranslating(true);
     setOutput('');
     const id = `popup-${Date.now()}`;
-    const res = await chrome.runtime.sendMessage({
-      type: 'translate.selection',
-      id,
-      text: input,
-      pair
-    });
-    if (res?.type === 'translate.result') {
-      const translated = res.items?.map((item: { translated: string }) => item.translated).join('\n') ?? '';
-      setOutput(translated);
-      setHistory((prev) => [
-        {
-          id: res.id,
-          input,
-          output: translated,
-          pair: `${pair.src}/${pair.dst}`,
-          createdAt: Date.now()
-        },
-        ...prev
-      ]);
-      setIsTranslating(false);
-      return;
-    }
-    if (res?.error) {
-      setIsTranslating(false);
-      setOutput(`[Error] ${String(res.error)}`);
     try {
       const res = await chrome.runtime.sendMessage({
         type: 'translate.selection',
@@ -183,11 +159,24 @@ export const PopupApp = () => {
     } finally {
       setIsTranslating(false);
     }
-  }
   };
 
   const handleSwap = () => {
     setPair(({ src, dst }) => ({ src: dst, dst: src }));
+  };
+
+  const handleTranslatePage = async () => {
+    setIsPageTranslating(true);
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        await chrome.tabs.sendMessage(tab.id, { type: 'content.startPageTranslation', pair });
+      }
+    } catch (error) {
+      setOutput(`[Error] ${error instanceof Error ? error.message : 'Failed to start page translation'}`);
+    } finally {
+      setIsPageTranslating(false);
+    }
   };
 
   return (
@@ -230,6 +219,15 @@ export const PopupApp = () => {
           data-xt-role="translate-button"
         >
           {isTranslating ? '翻訳中...' : '翻訳'}
+        </button>
+        <button
+          type="button"
+          onClick={handleTranslatePage}
+          disabled={isPageTranslating}
+          style={{ marginTop: 8, width: '100%', padding: 8, background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+          data-xt-role="translate-page-button"
+        >
+          {isPageTranslating ? 'ページ翻訳中...' : 'ページ全体を翻訳'}
         </button>
       </form>
       <section style={{ marginTop: 16 }}>

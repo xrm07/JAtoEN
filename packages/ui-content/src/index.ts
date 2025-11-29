@@ -1,24 +1,25 @@
 import { isValidSelection } from '@ja-to-en/domain';
+import {
+  withBody,
+  ensureButton,
+  hideOverlays,
+  showButton,
+  showTooltip,
+  updateProgress,
+  hideProgress
+} from './overlays';
+
 // Early boot log (before body)
 // eslint-disable-next-line no-console
 console.log('[xt] cs:init state=', document.readyState);
-declare global { interface Window { __xtInit?: boolean } }
-
-/**
- * Execute callback when document.body is available.
- * If body exists now, run immediately; otherwise wait for DOMContentLoaded.
- */
-const withBody = (fn: (body: HTMLElement) => void) => {
-  const run = () => {
-    const body = document.body;
-    if (body) fn(body);
-  };
-  if (document.body) {
-    run();
-  } else {
-    document.addEventListener('DOMContentLoaded', run, { once: true });
+declare global {
+  interface Window {
+    __xtInit?: boolean;
   }
-};
+}
+
+let currentSelection: Selection | null = null;
+const nodeMap = new Map<string, Text>();
 
 const initOnce = () => {
   ensureButton().addEventListener('click', handleClick);
@@ -47,90 +48,6 @@ const initOnce = () => {
   });
 };
 
-const BUTTON_ID = 'xt-selection-button';
-const TOOLTIP_ID = 'xt-translation-tooltip';
-
-// use domain-level validation
-
-let currentSelection: Selection | null = null;
-let progressEl: HTMLDivElement | null = null;
-const nodeMap = new Map<string, Text>();
-
-const ensureButton = (): HTMLButtonElement => {
-  const existing = document.querySelector<HTMLButtonElement>(`[data-xt-id="${BUTTON_ID}"]`);
-  if (existing) {
-    return existing;
-  }
-
-  const button = document.createElement('button');
-  button.dataset.xtId = BUTTON_ID;
-  button.dataset.xtRole = 'translate-trigger';
-  button.type = 'button';
-  button.textContent = '翻訳';
-  button.style.position = 'fixed';
-  button.style.padding = '4px 8px';
-  button.style.zIndex = '2147483646';
-  button.style.fontSize = '12px';
-  button.style.display = 'none';
-  button.style.cursor = 'pointer';
-  withBody((body) => body.appendChild(button));
-  return button;
-};
-
-const ensureTooltip = (): HTMLDivElement => {
-  const existing = document.querySelector<HTMLDivElement>(`[data-xt-id="${TOOLTIP_ID}"]`);
-  if (existing) {
-    return existing;
-  }
-
-  const tooltip = document.createElement('div');
-  tooltip.dataset.xtId = TOOLTIP_ID;
-  tooltip.dataset.xtRole = 'translate-result';
-  tooltip.style.position = 'fixed';
-  tooltip.style.maxWidth = '320px';
-  tooltip.style.padding = '8px';
-  tooltip.style.borderRadius = '6px';
-  tooltip.style.background = '#1f2933';
-  tooltip.style.color = '#fff';
-  tooltip.style.fontSize = '12px';
-  tooltip.style.lineHeight = '1.4';
-  tooltip.style.display = 'none';
-  tooltip.style.zIndex = '2147483647';
-  withBody((body) => body.appendChild(tooltip));
-  return tooltip;
-};
-
-const ensureProgress = (): HTMLDivElement => {
-  if (progressEl) return progressEl;
-  const el = document.createElement('div');
-  el.dataset.xtRole = 'xt-progress';
-  el.style.display = 'none';
-  withBody((body) => body.appendChild(el));
-  progressEl = el;
-  return el;
-};
-
-const hideOverlays = () => {
-  ensureButton().style.display = 'none';
-  ensureTooltip().style.display = 'none';
-  if (progressEl) progressEl.style.display = 'none';
-};
-
-const showButton = (x: number, y: number) => {
-  const button = ensureButton();
-  button.style.left = `${x}px`;
-  button.style.top = `${y}px`;
-  button.style.display = 'block';
-};
-
-const showTooltip = (text: string, x: number, y: number) => {
-  const tooltip = ensureTooltip();
-  tooltip.textContent = text;
-  tooltip.style.left = `${x}px`;
-  tooltip.style.top = `${y + 24}px`;
-  tooltip.style.display = 'block';
-};
-
 const handleMouseUp = (event: MouseEvent) => {
   currentSelection = document.getSelection();
   const text = currentSelection?.toString().trim();
@@ -156,15 +73,22 @@ const handleClick = () => {
   });
 };
 
-type MsgTranslateProgress = { type: 'translate.progress'; id: string; done: number; total: number };
-type MsgTranslateResult = { type: 'translate.result'; id: string; items: Array<{ id: string; translated: string }> };
+type MsgTranslateProgress = {
+  type: 'translate.progress';
+  id: string;
+  done: number;
+  total: number;
+};
+type MsgTranslateResult = {
+  type: 'translate.result';
+  id: string;
+  items: Array<{ id: string; translated: string }>;
+};
 type IncomingMessage = MsgTranslateProgress | MsgTranslateResult | { type: string };
 
 const handleRuntimeMessage = (message: IncomingMessage) => {
   if (message.type === 'translate.progress') {
-    const el = ensureProgress();
-    el.textContent = `Translating ${message.done}/${message.total}`;
-    el.style.display = 'block';
+    updateProgress(message.done, message.total);
     return;
   }
 
@@ -180,9 +104,8 @@ const handleRuntimeMessage = (message: IncomingMessage) => {
       const node = nodeMap.get(item.id);
       if (node) node.textContent = item.translated;
     }
-    if (progressEl) progressEl.style.display = 'none';
+    hideProgress();
   }
-  // no test-only messages
 };
 
 if (!window.__xtInit) {
