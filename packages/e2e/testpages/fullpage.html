@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>E2E: Full Page Translation</title>
+  <style>
+    body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 24px; }
+    .box { max-width: 720px; border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; }
+  </style>
+  <script>
+    // chrome.runtime stub to simulate background responses for page translation
+    (function() {
+      const listeners = new Set();
+      window.chrome = {
+        runtime: {
+          onMessage: {
+            addListener(fn) { listeners.add(fn); },
+            removeListener(fn) { listeners.delete(fn); },
+          },
+          sendMessage(msg) {
+            if (msg && msg.type === 'translate.page') {
+              const total = Array.isArray(msg.segments) ? msg.segments.length : 0;
+              setTimeout(() => {
+                // progress first
+                const progress = { type: 'translate.progress', id: msg.id, done: 0, total };
+                listeners.forEach(fn => fn(progress, {}, () => {}));
+                // then result mapping each id to a pseudo translation
+                const items = msg.segments.map(s => ({ id: s.id, translated: `[EN] ${s.text}` }));
+                const result = { type: 'translate.result', id: msg.id, items };
+                listeners.forEach(fn => fn(result, {}, () => {}));
+              }, 50);
+            }
+            return Promise.resolve({ ok: true });
+          },
+        },
+      };
+    })();
+  </script>
+  <script src="/packages/ui-content/dist/content.js"></script>
+</head>
+<body>
+  <h1>ページ全体翻訳のテスト</h1>
+  <p>このページのテキストは、イベントを送るとダミー翻訳（[EN]）で置き換えられます。</p>
+  <div class="box" id="box1">最初の段落です。テスト用の日本語テキスト。</div>
+  <div class="box" id="box2">二番目の段落です。もう少し長いテキストで置換を確認します。</div>
+  <div class="box" id="box3">三番目の段落です。短文。</div>
+  <button id="start">ページ翻訳を開始</button>
+  <script>
+    document.getElementById('start').addEventListener('click', () => {
+      window.dispatchEvent(new Event('xt:translate-page'));
+    });
+  </script>
+</body>
+</html>

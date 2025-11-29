@@ -7,6 +7,43 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Minimal dev/preview stub for Chrome APIs when not running as an extension
+      (function () {
+        if (typeof window.chrome !== 'undefined') return;
+        const listeners = [];
+        window.chrome = {
+          runtime: {
+            onMessage: {
+              addListener(cb) { listeners.push(cb); },
+              removeListener(cb) { const i = listeners.indexOf(cb); if (i >= 0) listeners.splice(i, 1); }
+            },
+            async sendMessage(message) {
+              if (message && message.type === 'translate.selection') {
+                const text = typeof message.text === 'string' ? message.text : '';
+                const res = { type: 'translate.result', id: message.id, items: [{ id: message.id, translated: `【mock】${text ? ' ' : ''}${text}` }] };
+                for (const l of listeners) { try { l(res, {}, function () {}); } catch (e) {} }
+                return res;
+              }
+              if (message && message.type === 'stats.get') {
+                return { type: 'stats.result', stats: { entries: 0, estimatedBytes: 0, hits: 0, misses: 0 } };
+              }
+              return { error: 'unsupported message in preview stub' };
+            }
+          },
+          storage: {
+            local: {
+              async get() { try { return { 'xt-settings': JSON.parse(localStorage.getItem('xt-settings')) }; } catch (e) { return { 'xt-settings': null }; } },
+              async set(obj) { try { if ('xt-settings' in obj) localStorage.setItem('xt-settings', JSON.stringify(obj['xt-settings'])); } catch (e) {} }
+            },
+            onChanged: { addListener() {}, removeListener() {} }
+          },
+          tabs: { sendMessage() {} },
+          contextMenus: { create() {}, removeAll() {}, onClicked: { addListener() {} } },
+          commands: { onCommand: { addListener() {} } }
+        };
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Popup E2E (dist + stub)</title>
+    <style> body { margin: 0; font-family: system-ui, sans-serif; } </style>
+    <script>
+      // Inline stub so dist bundle can run outside extension
+      (function () {
+        const listeners = [];
+        if (typeof window.chrome === 'undefined') window.chrome = {};
+        if (typeof window.chrome.runtime === 'undefined') {
+          window.chrome.runtime = {
+            onMessage: {
+              addListener(cb) { listeners.push(cb); },
+              removeListener(cb) { const i = listeners.indexOf(cb); if (i >= 0) listeners.splice(i, 1); }
+            },
+            async sendMessage(message) {
+              if (message && message.type === 'translate.selection') {
+                const text = typeof message.text === 'string' ? message.text : '';
+                const res = { type: 'translate.result', id: message.id, items: [{ id: message.id, translated: `【mock】${text ? ' ' : ''}${text}` }] };
+                for (const l of listeners) { try { l(res, {}, function () {}); } catch (e) {} }
+                return res;
+              }
+              if (message && message.type === 'stats.get') {
+                return { type: 'stats.result', stats: { entries: 0, estimatedBytes: 0, hits: 0, misses: 0 } };
+              }
+              return { error: 'unsupported message in dist stub' };
+            }
+          };
+        }
+        if (typeof window.chrome.storage === 'undefined') {
+          window.chrome.storage = {
+            local: {
+              async get() { try { return { 'xt-settings': JSON.parse(localStorage.getItem('xt-settings')) }; } catch (e) { return { 'xt-settings': null }; } },
+              async set(obj) { try { if ('xt-settings' in obj) localStorage.setItem('xt-settings', JSON.stringify(obj['xt-settings'])); } catch (e) {} }
+            },
+            onChanged: { addListener() {}, removeListener() {} }
+          };
+        }
+        if (typeof window.chrome.tabs === 'undefined') window.chrome.tabs = { sendMessage() {} };
+        if (typeof window.chrome.contextMenus === 'undefined') window.chrome.contextMenus = { create() {}, removeAll() {}, onClicked: { addListener() {} } };
+        if (typeof window.chrome.commands === 'undefined') window.chrome.commands = { onCommand: { addListener() {} } };
+      })();
+    </script>
+    <script type="module" src="../../ui-popup/dist/assets/index-LAKSyujn.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+  </html>
+
+

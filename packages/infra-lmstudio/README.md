@@ -11,6 +11,18 @@ LM Studio client for JA⇄EN Translator.
 - Endpoint: `POST /chat/completions`
 - System prompt: returns exactly N segments separated by U+241E (␞).
 
+## Model listing
+
+- `GET /v1/models` is supported via `listModels({ baseUrl?, apiKey? })` which returns `string[]` ids.
+- Example usage:
+
+```ts
+import { listModels } from '@ja-to-en/infra-lmstudio';
+
+const ids = await listModels({ baseUrl: 'http://127.0.0.1:1234/v1' });
+// choose one of ids for TranslationRequest.params.model
+```
+
 Notes
 - To use a non-local LM Studio endpoint, set Base URL and API Key in the popup Settings.
 - Update `host_permissions` in the extension manifest if you change the host.

@@ -53,7 +53,7 @@ reviews:
           `actions/upload-artifact` for downstream jobs.
 
     # End‑to‑end tests
-    - path: "packages/e2e/src/**"
+    - path: "packages/e2e/**"
       instructions: |
         The e2e package contains Puppeteer‑based tests.  Reviewers should:
 
@@ -95,6 +95,39 @@ reviews:
         * Suggest adding inline comments or JSDoc where code is complex or when
           the intention is not obvious.  Docstrings make the code easier to
           understand and help generate documentation.
+
+    # TSX React sources (popup UI)
+    - path: "packages/**/*.tsx"
+      instructions: |
+        For React components (popup/options), keep logic testable and isolate
+        Chrome API usage:
+        * Use `data-xt-*` hooks for selectors in tests.
+        * Persist settings under `chrome.storage.local` key `xt-settings` and
+          keep types in sync with background expectations.
+        * Avoid unnecessary re-renders; prefer pure components where possible.
+
+    # Content script (overlay & page translation behaviour)
+    - path: "packages/ui-content/src/**/*.ts"
+      instructions: |
+        Review selection overlay and full-page translation logic:
+        * Keep DOM hooks isolated via `data-xt-*` attributes and high z-index.
+        * Validate selection with domain helpers (`isValidSelection`).
+        * Verify message contracts with background: `translate.selection`,
+          `translate.page`, and progress/result payload shapes.
+        * Confirm Text-node traversal excludes `script/style/noscript/textarea/input`.
+        * Ensure Escape key hides overlays and node replacement uses a stable
+          id→node mapping.
+
+    # Background service worker
+    - path: "packages/background/src/**/*.ts"
+      instructions: |
+        Verify background message handling and LM Studio integration:
+        * Handlers: `translate.selection`, `translate.page`, `stats.get`.
+        * Respect caching via `infra-cache` and segment batching via `domain`.
+        * Ensure LM Studio client errors are surfaced with actionable messages
+          and backoff/retry is bounded.
+        * Do not fetch from content scripts; centralize network in background
+          and align `host_permissions` with localhost defaults.
 
     # Package manifests
     - path: "packages/**/package.json"

@@ -10,7 +10,7 @@ declare global { interface Window { __xtInit?: boolean } }
  */
 const withBody = (fn: (body: HTMLElement) => void) => {
   const run = () => {
-    const body = document.body as HTMLElement | null;
+    const body = document.body;
     if (body) fn(body);
   };
   if (document.body) {
@@ -37,7 +37,9 @@ const initOnce = () => {
       handleClick();
       return;
     }
-    handleRuntimeMessage(message as never);
+    if (message && typeof message === 'object' && 'type' in message) {
+      handleRuntimeMessage(message as IncomingMessage);
+    }
   });
   // Testing hook: allow the page to dispatch a custom event to start full-page translation
   window.addEventListener('xt:translate-page', () => {

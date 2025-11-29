@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Content Overlay Test</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif; line-height: 1.6; padding: 24px; }
+      .box { border: 1px solid #ddd; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+      .muted { color: #6b7280; font-size: 12px; }
+    </style>
+    <script>
+      // Minimal chrome.runtime stub for testing ui-content without extension
+      (function() {
+        const msgListeners = [];
+        window.chrome = window.chrome || {};
+        window.chrome.runtime = window.chrome.runtime || {};
+        window.chrome.runtime.onMessage = {
+          addListener(cb) { msgListeners.push(cb); },
+          removeListener(cb) { const i = msgListeners.indexOf(cb); if (i >= 0) msgListeners.splice(i, 1); },
+        };
+        window.chrome.runtime.sendMessage = function(message) {
+          // selection translation: echo back with mock prefix
+          if (message && message.type === 'translate.selection') {
+            const res = { type: 'translate.result', id: message.id, items: [{ id: message.id, translated: '【mock】 ' + String(message.text || '') }] };
+            setTimeout(() => { for (const l of msgListeners) { try { l(res, {}, function(){}); } catch {} } }, 10);
+            return Promise.resolve(res);
+          }
+          // page translation: map segments to translated items
+          if (message && message.type === 'translate.page') {
+            const items = (message.segments || []).map(s => ({ id: s.id, translated: '【mock】 ' + String(s.text || '') }));
+            const res = { type: 'translate.result', id: message.id, items };
+            setTimeout(() => { for (const l of msgListeners) { try { l(res, {}, function(){}); } catch {} } }, 10);
+            return Promise.resolve(res);
+          }
+          if (message && message.type === 'stats.get') {
+            return Promise.resolve({ type: 'stats.result', stats: { entries: 0, estimatedBytes: 0, hits: 0, misses: 0 } });
+          }
+          return Promise.resolve({ error: 'unsupported message in test stub' });
+        }
+      })();
+    </script>
+    <script src="../../ui-content/dist/content.js"></script>
+  </head>
+  <body>
+    <h1>ui-content overlay manual test</h1>
+    <p class="muted">選択して「翻訳」ボタン→ツールチップ表示、Escで非表示、ページ翻訳イベントの確認</p>
+
+    <div id="text-target" class="box">
+      これはテスト用の日本語テキストです。選択して翻訳ボタンの挙動を確認します。
+    </div>
+
+    <div class="box">
+      English sentence also here. 日本語と英語が混在しています。
+    </div>
+
+    <button id="trigger-page" class="box">ページ翻訳を開始（xt:translate-page イベント）</button>
+
+    <script>
+      document.getElementById('trigger-page')?.addEventListener('click', () => {
+        window.dispatchEvent(new Event('xt:translate-page'));
+      });
+      // Helper: programmatically select text in #text-target for automation
+      window.__selectText = function() {
+        const el = document.getElementById('text-target');
+        if (!el) return false;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        if (!sel) return false;
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const rect = el.getBoundingClientRect();
+        const evt = new MouseEvent('mouseup', { clientX: rect.left + 10, clientY: rect.top + 10, bubbles: true });
+        document.dispatchEvent(evt);
+        return true;
+      }
+    </script>
+  </body>
+  </html>
+
+

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { listModels } from '@ja-to-en/infra-lmstudio';
 
 type HistoryEntry = {
   id: string;
@@ -22,6 +23,10 @@ export const PopupApp = () => {
   const [stats, setStats] = useState<{ entries: number; estimatedBytes: number; hits: number; misses: number } | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [endpoint, setEndpoint] = useState<'chat/completions' | 'responses'>('chat/completions');
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
 
   useEffect(() => {
     const listener = (message: { type: string; id: string; items?: Array<{ translated: string }> }) => {
@@ -59,6 +64,7 @@ export const PopupApp = () => {
       setMaxTokens(Number(s.maxTokens ?? maxTokens));
       setBaseUrl(typeof s.baseUrl === 'string' ? s.baseUrl : '');
       setApiKey(typeof s.apiKey === 'string' ? s.apiKey : '');
+      setEndpoint(s.endpoint === 'responses' || s.endpoint === 'chat/completions' ? s.endpoint : 'chat/completions');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -72,6 +78,45 @@ export const PopupApp = () => {
     }, 2000);
     return () => clearInterval(id);
   }, []);
+
+  // Load models from LM Studio when baseUrl/apiKey change or on first mount
+  useEffect(() => {
+    const run = async () => {
+      setModelsLoading(true);
+      setModelsError(null);
+      try {
+        const ids = await listModels({ baseUrl: baseUrl || undefined, apiKey: apiKey || undefined });
+        const chatCapable = ids.filter((id) => !/embed|embedding/i.test(id));
+        setModelOptions(chatCapable);
+        if (chatCapable.length > 0 && !chatCapable.includes(model)) {
+          setModel(chatCapable[0]!);
+        }
+      } catch (e) {
+        setModelsError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setModelsLoading(false);
+      }
+    };
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseUrl, apiKey]);
+
+  const handleReloadModels = async () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      const ids = await listModels({ baseUrl: baseUrl || undefined, apiKey: apiKey || undefined });
+      const chatCapable = ids.filter((id) => !/embed|embedding/i.test(id));
+      setModelOptions(chatCapable);
+      if (chatCapable.length > 0 && !chatCapable.includes(model)) {
+        setModel(chatCapable[0]!);
+      }
+    } catch (e) {
+      setModelsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setModelsLoading(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -138,6 +183,7 @@ export const PopupApp = () => {
     } finally {
       setIsTranslating(false);
     }
+  }
   };
 
   const handleSwap = () => {
@@ -204,9 +250,44 @@ export const PopupApp = () => {
       <section style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 14, marginBottom: 8 }}>設定</h2>
         <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 4 }}>
           <label style={{ fontSize: 12 }}>
-            モデル
-            <input value={model} onChange={(e) => setModel(e.target.value)} style={{ width: '100%' }} />
+              モデル
+              {modelOptions.length > 0 ? (
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  style={{ width: '100%' }}
+                  data-xt-role="settings-model-select"
+                >
+                  {modelOptions.map((id) => (
+                    <option key={id} value={id}>{id}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  style={{ width: '100%' }}
+                  data-xt-role="settings-model-input"
+                />
+              )}
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={handleReloadModels} data-xt-role="settings-reload-models">
+                モデル再読込{modelsLoading ? '…' : ''}
+              </button>
+              {modelsError ? (
+                <span style={{ fontSize: 12, color: '#b91c1c' }}>取得失敗: {modelsError}</span>
+              ) : null}
+            </div>
+          </div>
+          <label style={{ fontSize: 12 }}>
+            API Endpoint
+            <select value={endpoint} onChange={(e) => setEndpoint(e.target.value as any)} style={{ width: '100%' }} data-xt-role="settings-endpoint">
+              <option value="chat/completions">/v1/chat/completions</option>
+              <option value="responses">/v1/responses</option>
+            </select>
           </label>
           <label style={{ fontSize: 12 }}>
             Temperature
@@ -220,14 +301,26 @@ export const PopupApp = () => {
           </label>
           <label style={{ fontSize: 12 }}>
             LM Studio Base URL
-            <input placeholder="http://localhost:1234/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} style={{ width: '100%' }} />
+            <input
+              placeholder="http://localhost:1234/v1"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              style={{ width: '100%' }}
+              data-xt-role="settings-base-url"
+            />
           </label>
           <label style={{ fontSize: 12 }}>
             API Key (optional)
-            <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%' }} />
-            <input type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%' }} />
+            <input
+              type="password"
+              autoComplete="off"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              style={{ width: '100%' }}
+              data-xt-role="settings-api-key"
+            />
           </label>
-          <button type="button" onClick={() => chrome.storage.local.set({ 'xt-settings': { model, temperature, maxTokens, baseUrl, apiKey } })}>
+          <button type="button" onClick={() => chrome.storage.local.set({ 'xt-settings': { model, temperature, maxTokens, baseUrl, apiKey, endpoint } })}>
             保存
           </button>
         </div>

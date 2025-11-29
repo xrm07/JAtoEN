@@ -33,8 +33,8 @@
 
 ## 次のステップ
 
-- requirements の仕様に合わせて LM Studio オプション UI、IndexedDB 実装、ジョブ進捗ハンドリングを拡張してください。
-- `packages/e2e` に Puppeteer シナリオを実装し、CI で `pnpm test:e2e` を実行できるようにします。
+- LM Studio モデル一覧の取得（`GET /v1/models`）とポップアップでの選択 UI を実装済みです。`保存` 後は即時反映されます（背景SWが `xt-settings` を監視）。
+- `packages/e2e` のテストは LM Studio スタブサーバを内蔵し、モデル切替えまで検証します。実機LM Studioで試す場合はポップアップ設定の Base URL を `http://127.0.0.1:1234/v1` に設定し、`モデル再読込` を押してください。
 
 ## CI
 

@@ -46,6 +46,7 @@ type RuntimeConfig = {
   model: string;
   maxTokens: number;
   temperature: number;
+  endpoint?: 'chat/completions' | 'responses';
 };
 
 type StoredSettings = Partial<RuntimeConfig> & {
@@ -56,7 +57,8 @@ type StoredSettings = Partial<RuntimeConfig> & {
 const runtimeConfig: RuntimeConfig = {
   model: 'lmstudio/translate-enja',
   maxTokens: 1024,
-  temperature: 0.2
+  temperature: 0.2,
+  endpoint: 'chat/completions'
 };
 
 const segmenter = new Segmenter();
@@ -73,6 +75,7 @@ const getClient = (): LMStudioClient =>
     apiKey: lmApiKey,
     defaultModel: runtimeConfig.model,
     defaultTemperature: runtimeConfig.temperature,
+    endpoint: runtimeConfig.endpoint ?? 'chat/completions',
   });
 
 const handleMessage = async (
@@ -232,8 +235,19 @@ const executeTranslation = async (
   sendResponse: (response: MsgTranslationResult | { error: string }) => void
 ) => {
   try {
+    console.info('[xt][translate] start', {
+      id: request.id,
+      segments: request.segments.length,
+      model: request.params.model,
+      endpoint: runtimeConfig.endpoint ?? 'chat/completions',
+      baseUrl: lmBaseUrl ?? 'default'
+    });
     const client = getClient();
     const result = await client.translate(request);
+    console.info('[xt][translate] success', {
+      id: request.id,
+      items: result.items.length
+    });
     const combinedText = result.items.map((item) => item.translated).join('\n');
     const cacheValue: CacheValue = {
       key: cacheKey,
@@ -252,6 +266,7 @@ const executeTranslation = async (
     await cache.set(cacheValue);
     sendResponse(result);
   } catch (error) {
+    console.error('[xt][translate] error', error);
     sendResponse({
       error: serializeError(error)
     });
@@ -285,11 +300,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 const loadSettings = async () => {
   try {
     const data = await chrome.storage.local.get(['xt-settings']);
-    const s = data['xt-settings'] as (Partial<RuntimeConfig> & { baseUrl?: string; apiKey?: string }) | undefined;
     const s = data['xt-settings'] as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+    if (s?.endpoint === 'responses' || s?.endpoint === 'chat/completions') runtimeConfig.endpoint = s.endpoint;
     lmBaseUrl = typeof s?.baseUrl === 'string' && s.baseUrl.trim() ? s.baseUrl.trim() : undefined;
     lmApiKey = typeof s?.apiKey === 'string' && s.apiKey.trim() ? s.apiKey.trim() : undefined;
   } catch {
@@ -307,11 +322,11 @@ void loadSettings();
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes['xt-settings']) {
-    const s = changes['xt-settings'].newValue as (Partial<RuntimeConfig> & { baseUrl?: string; apiKey?: string }) | undefined;
     const s = changes['xt-settings'].newValue as StoredSettings | undefined;
     if (s?.model) runtimeConfig.model = s.model as string;
     if (typeof s?.maxTokens === 'number') runtimeConfig.maxTokens = s.maxTokens;
     if (typeof s?.temperature === 'number') runtimeConfig.temperature = s.temperature;
+    if (s?.endpoint === 'responses' || s?.endpoint === 'chat/completions') runtimeConfig.endpoint = s.endpoint;
     lmBaseUrl = typeof s?.baseUrl === 'string' && s.baseUrl.trim() ? s.baseUrl.trim() : undefined;
     lmApiKey = typeof s?.apiKey === 'string' && s.apiKey.trim() ? s.apiKey.trim() : undefined;
   }

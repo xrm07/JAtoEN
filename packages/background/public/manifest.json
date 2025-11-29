@@ -11,7 +11,8 @@
     "tabs"
   ],
   "host_permissions": [
-    "http://localhost:1234/*"
+    "http://localhost:1234/*",
+    "http://127.0.0.1:1234/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -19,11 +20,13 @@
   },
   "commands": {
     "translate-selection": {
+      "description": "Translate current selection",
       "suggested_key": {
         "default": "Alt+T"
       }
     },
     "translate-page": {
+      "description": "Translate entire page",
       "suggested_key": {
         "default": "Alt+Shift+T"
       }
